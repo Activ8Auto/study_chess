@@ -2,6 +2,10 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { Chess } from "chess.js";
 
+// Define API_URL globally to use throughout the file
+const API_URL = process.env.REACT_APP_BACKEND_URL?.trim() || "http://localhost:5001";
+console.log("🔥 Using API_URL:", API_URL);
+
 const parsePGNHeaders = (pgn) => {
   const chess = new Chess();
   chess.loadPgn(pgn);
@@ -39,7 +43,7 @@ const useChessStore = create(
         if (get().loadingNotes) return;
         set({ loadingNotes: true });
         try {
-          const response = await fetch("http://localhost:5001/notes");
+          const response = await fetch(`${API_URL}/notes`);
           const data = await response.json();
           console.log("Fetched notes:", data);
           set({ notes: data, loadingNotes: false });
@@ -68,7 +72,7 @@ const useChessStore = create(
         };
 
         try {
-          const response = await fetch("http://localhost:5001/notes", {
+          const response = await fetch(`${API_URL}/notes`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(newNote),
@@ -95,14 +99,15 @@ const useChessStore = create(
 
       updateNote: async (updatedNote) => {
         try {
-          const response = await fetch(
-            `http://localhost:5001/notes/${updatedNote.id}`,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(updatedNote),
-            }
-          );
+          const response = await fetch(`${API_URL}/notes/${updatedNote.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updatedNote),
+          });
+
+          if (!response.ok) {
+            throw new Error(`Failed to update note: ${response.statusText}`);
+          }
 
           const data = await response.json();
           set((state) => ({
@@ -117,11 +122,9 @@ const useChessStore = create(
 
       deleteNote: async (noteId) => {
         try {
-          const response = await fetch(`http://localhost:5001/notes/${noteId}`, {
+          const response = await fetch(`${API_URL}/notes/${noteId}`, {
             method: "DELETE",
-            headers: {
-              "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
           });
 
           if (!response.ok) {
@@ -170,7 +173,7 @@ const useChessStore = create(
             moveNotes,
           };
 
-          const response = await fetch(`http://localhost:5001/notes/${noteId}`, {
+          const response = await fetch(`${API_URL}/notes/${noteId}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(updatedNote),

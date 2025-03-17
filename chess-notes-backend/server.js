@@ -8,7 +8,18 @@ const app = express();
 const port = process.env.PORT || 5001;
 
 // Middleware
-app.use(cors());
+const allowedOrigins = [
+    "https://your-frontend.vercel.app", // Replace with your actual frontend URL
+    "http://localhost:3000", // Allow local dev environment
+  ];
+  
+  app.use(
+    cors({
+      origin: allowedOrigins,
+      credentials: true,
+    })
+  );
+  
 app.use(bodyParser.json());
 
 const pool = require("./db"); // IMPORT FROM db.js
@@ -134,6 +145,7 @@ app.delete("/notes/:id", async (req, res) => {
 });
 
 // Start the server
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+app.listen(port, "0.0.0.0", () => {
+    console.log(`Server running on port ${port}`);
+  });
+  
