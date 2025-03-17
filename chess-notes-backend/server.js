@@ -11,14 +11,8 @@ const port = process.env.PORT || 5001;
 app.use(cors());
 app.use(bodyParser.json());
 
-// PostgreSQL Connection
-const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
-});
+const pool = require("./db"); // IMPORT FROM db.js
+
 
 // Test database connection
 pool
