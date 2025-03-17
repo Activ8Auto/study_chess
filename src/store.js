@@ -20,7 +20,6 @@ const createNoteTitle = (headers) => {
   return `${white} (${whiteElo}) vs ${black} (${blackElo}) - ${date}`;
 };
 
-// ✅ Wrap Zustand store inside `persist`
 const useChessStore = create(
   persist(
     (set, get) => ({
@@ -65,6 +64,7 @@ const useChessStore = create(
           fen: fen || "",
           moveNotes: {},
           chessComGameId: chessComGameId || null,
+          pgn: pgn || ""
         };
 
         try {
@@ -76,9 +76,7 @@ const useChessStore = create(
 
           if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(
-              `HTTP error! status: ${response.status}, message: ${errorText}`
-            );
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
           }
 
           const data = await response.json();
@@ -93,22 +91,41 @@ const useChessStore = create(
         }
       },
 
-      updateNote: async (updatedNote) => {
+      updateNotePGN: async (noteId, pgn) => {
         try {
-          const response = await fetch(
-            `http://localhost:5001/notes/${updatedNote.id}`,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(updatedNote),
-            }
-          );
-
+          const note = get().notes.find((n) => n.id === noteId);
+          if (!note) {
+            console.error("Note not found:", noteId);
+            return;
+          }
+          const updatedNote = { ...note, pgn };
+          const response = await fetch(`http://localhost:5001/notes/${noteId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updatedNote),
+          });
+          if (!response.ok) {
+            throw new Error("Failed to update note PGN");
+          }
           const data = await response.json();
           set((state) => ({
-            notes: state.notes.map((note) =>
-              note.id === data.id ? data : note
-            ),
+            notes: state.notes.map((n) => (n.id === data.id ? data : n)),
+          }));
+        } catch (error) {
+          console.error("Error updating note PGN:", error);
+        }
+      },
+
+      updateNote: async (updatedNote) => {
+        try {
+          const response = await fetch(`http://localhost:5001/notes/${updatedNote.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updatedNote),
+          });
+          const data = await response.json();
+          set((state) => ({
+            notes: state.notes.map((note) => (note.id === data.id ? data : note)),
           }));
         } catch (error) {
           console.error("Error updating note:", error);
@@ -119,15 +136,11 @@ const useChessStore = create(
         try {
           const response = await fetch(`http://localhost:5001/notes/${noteId}`, {
             method: "DELETE",
-            headers: {
-              "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
           });
-
           if (!response.ok) {
             throw new Error(`Failed to delete note: ${response.statusText}`);
           }
-
           set((state) => ({
             notes: state.notes.filter((note) => note.id !== noteId),
           }));
@@ -178,16 +191,12 @@ const useChessStore = create(
 
           if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(
-              `Failed to save move notes: ${response.status} - ${errorText}`
-            );
+            throw new Error(`Failed to save move notes: ${response.status} - ${errorText}`);
           }
 
           const data = await response.json();
           set((state) => ({
-            notes: state.notes.map((note) =>
-              note.id === data.id ? data : note
-            ),
+            notes: state.notes.map((note) => (note.id === data.id ? data : note)),
           }));
         } catch (error) {
           console.error("Error saving move notes:", error);
@@ -195,8 +204,8 @@ const useChessStore = create(
       },
     }),
     {
-      name: "chess-store", // The key to store in localStorage
-      getStorage: () => localStorage, // Persist Zustand store to localStorage
+      name: "chess-store",
+      getStorage: () => localStorage,
     }
   )
 );

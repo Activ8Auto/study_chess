@@ -62,11 +62,10 @@ function Dashboard() {
   };
 
   const handleNoteSelect = (note) => {
-    // Don’t set selectedPGN for notes unless it has a valid PGN
     if (note.pgn) {
       setSelectedPGN(note.pgn);
     } else {
-      setSelectedPGN(null); // Clear PGN to avoid interference
+      setSelectedPGN(null);
     }
     navigate(`/game/${note.id}`);
   };

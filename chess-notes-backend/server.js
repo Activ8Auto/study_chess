@@ -52,67 +52,60 @@ app.get("/notes/:id", async (req, res) => {
 
 // Add a new note
 app.post("/notes", async (req, res) => {
-  try {
-    const { title, body, fen, moveNotes, chessComGameId } = req.body;
-    console.log("Received note:", {
-      title,
-      body,
-      fen,
-      moveNotes,
-      chessComGameId,
-    });
-    const result = await pool.query(
-      `INSERT INTO notes (title, body, fen, move_notes, chess_com_game_id, created_at, last_modified)
-         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    try {
+      const { title, body, fen, moveNotes, chessComGameId, pgn } = req.body;
+      console.log("Received note:", { title, body, fen, moveNotes, chessComGameId, pgn });
+      const result = await pool.query(
+        `INSERT INTO notes (title, body, fen, move_notes, chess_com_game_id, pgn, created_at, last_modified)
+         VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
          RETURNING id`,
-      [
-        title || "New Game Note",
-        body || "",
-        fen || "",
-        moveNotes || {},
-        chessComGameId || null,
-      ],
-    );
-    console.log("Inserted note with ID:", result.rows[0].id);
-    res.json({ id: result.rows[0].id });
-  } catch (error) {
-    console.error("Server error inserting note:", error);
-    res
-      .status(500)
-      .json({ error: "Error adding note", details: error.message });
-  }
-});
-
-app.put("/notes/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { title, body, fen, moveNotes, chessComGameId } = req.body;
-    console.log("PUT /notes/:id - Request body:", req.body);
-    const result = await pool.query(
-      `UPDATE notes
-         SET title = $1, body = $2, fen = $3, move_notes = $4, chess_com_game_id = $5, last_modified = CURRENT_TIMESTAMP
+        [
+          title || "New Game Note",
+          body || "",
+          fen || "",
+          moveNotes || {},
+          chessComGameId || null,
+          pgn || ""
+        ]
+      );
+      console.log("Inserted note with ID:", result.rows[0].id);
+      res.json({ id: result.rows[0].id });
+    } catch (error) {
+      console.error("Server error inserting note:", error);
+      res.status(500).json({ error: "Error adding note", details: error.message });
+    }
+  });
+  
+  // Update an existing note
+  app.put("/notes/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { title, body, fen, moveNotes, chessComGameId, pgn } = req.body;
+      console.log("PUT /notes/:id - Request body:", req.body);
+      const result = await pool.query(
+        `UPDATE notes
+         SET title = $1, body = $2, fen = $3, move_notes = $4, chess_com_game_id = $5, pgn = $6, last_modified = CURRENT_TIMESTAMP
          WHERE id = $6
          RETURNING *`,
-      [
-        title || "New Game Note",
-        body || "",
-        fen || "",
-        moveNotes !== undefined ? JSON.stringify(moveNotes) : "{}",
-        chessComGameId || null,
-        id,
-      ],
-    );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Note not found" });
+        [
+          title || "New Game Note",
+          body || "",
+          fen || "",
+          moveNotes !== undefined ? JSON.stringify(moveNotes) : "{}",
+          chessComGameId || null,
+          pgn || "",
+          id
+        ]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: "Note not found" });
+      }
+      res.json(result.rows[0]);
+    } catch (err) {
+      console.error("Error updating note - Full error:", err.stack);
+      res.status(500).json({ error: "Error updating note", details: err.message });
     }
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error("Error updating note - Full error:", err.stack);
-    res
-      .status(500)
-      .json({ error: "Error updating note", details: err.message });
-  }
-});
+  });
 
 app.delete("/notes/:id", async (req, res) => {
   try {
