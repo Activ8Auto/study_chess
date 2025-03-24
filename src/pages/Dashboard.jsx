@@ -12,10 +12,16 @@ import {
   CircularProgress,
   Button,
 } from "@mui/material";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import DialogContentText from "@mui/material/DialogContentText";
+import DialogTitle from "@mui/material/DialogTitle";
 
 function Dashboard() {
   const { fetchNotes, notes, deleteNote, setSelectedPGN } = useChessStore();
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, noteId: null });
   const [games, setGames] = useState([]);
   const [filter, setFilter] = useState("date");
   const [view, setView] = useState("games"); // Default to "notes" for clarity
@@ -81,15 +87,25 @@ function Dashboard() {
   };
 
   const handleDeleteNote = async (noteId) => {
+    setDeleteDialog({ open: true, noteId }); // Open dialog instead of deleting immediately
+  };
+  
+  const confirmDelete = async () => {
+    const { noteId } = deleteDialog;
     try {
       await deleteNote(noteId);
       setSnackbar({ open: true, message: "Note deleted successfully!", severity: "success" });
     } catch (error) {
       console.error("Failed to delete note:", error);
       setSnackbar({ open: true, message: "Failed to delete note.", severity: "error" });
+    } finally {
+      setDeleteDialog({ open: false, noteId: null }); // Close dialog regardless of outcome
     }
   };
-
+  
+  const cancelDelete = () => {
+    setDeleteDialog({ open: false, noteId: null }); // Close dialog without
+  }
   const sortedNotes = [...notes].sort((a, b) => {
     if (filter === "date") {
       const dateA = a.last_modified || a.created_at || 0;
@@ -207,6 +223,7 @@ function Dashboard() {
                 >
                   Delete Note
                 </Button>
+                
                 <Button
                   onClick={() => handleNoteSelect(note)}
                   variant="contained"
@@ -238,7 +255,27 @@ function Dashboard() {
           </Card>
         ))
       )}
-
+<Dialog
+  open={deleteDialog.open}
+  onClose={cancelDelete}
+  aria-labelledby="alert-dialog-title"
+  aria-describedby="alert-dialog-description"
+>
+  <DialogTitle id="alert-dialog-title">Confirm Deletion</DialogTitle>
+  <DialogContent>
+    <DialogContentText id="alert-dialog-description">
+      Are you sure you want to delete this note? This action cannot be undone.
+    </DialogContentText>
+  </DialogContent>
+  <DialogActions>
+    <Button onClick={cancelDelete} color="primary">
+      Cancel
+    </Button>
+    <Button onClick={confirmDelete} color="error" autoFocus>
+      Delete
+    </Button>
+  </DialogActions>
+</Dialog>
       <Snackbar
         open={snackbar.open}
         autoHideDuration={3000}
@@ -257,4 +294,4 @@ function Dashboard() {
   );
 }
 
-export default React.memo(Dashboard);
+export default React.memo(Dashboard)
