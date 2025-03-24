@@ -1,10 +1,9 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect,useMemo, useState } from "react";
 import { Chess } from "chess.js";
 import { Chessboard } from "react-chessboard";
 import useChessStore from "../store";
 import IconButton from "@mui/material/IconButton";
-import pgnParser from "pgn-parser";
 import {
   Card,
   CardContent,
@@ -30,16 +29,11 @@ export default function GameReview() {
     updateNotePGN,
     addNote,
   } = useChessStore();
-
-  // Initial FEN for a standard chess starting position
-  const STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-
-  // Initialize state with the starting position
-  const [fen, setFen] = useState(STARTING_FEN);
-  const [chess, setChess] = useState(new Chess(STARTING_FEN));
+  const [fen, setFen] = useState(new Chess().fen());
+  const [chess, setChess] = useState(new Chess());
   const [moveTree, setMoveTree] = useState({
     move: null,
-    fen: STARTING_FEN,
+    fen: new Chess().fen(), // Standard starting position by default
     annotation: "",
     children: [],
   });
@@ -59,381 +53,270 @@ export default function GameReview() {
     message: "",
     severity: "success",
   });
-  const [finalResult, setFinalResult] = useState("*");
+  
+  const [finalResult, setFinalResult] = useState("*"); // Track final result
 
   /**
    * Build a move list (with variations and annotations) for display.
+   * Now includes a variationDepth to manage indentation levels.
    */
-  function buildMoveList(
+   function buildMoveList(
     node,
     moveNumber = 1,
     isWhiteTurn = true,
     moveList = [],
     currentPath = [],
     isVariation = false,
-    variationDepth = 0,
-    skipMoveAdd = false,
-    afterVariation = false,
-    isVariationStart = false
+    variationDepth = 0
   ) {
-    if (!skipMoveAdd && node.move) {
-      let moveText;
-      if (isVariation) {
-        if (isVariationStart) {
-          moveText = isWhiteTurn
-            ? `${moveNumber}. ${node.move}`
-            : `${moveNumber}... ${node.move}`;
-        } else {
-          moveText = ` ${node.move}`;
-        }
-      } else {
-        moveText = isWhiteTurn
-          ? `${moveNumber}. ${node.move}`
-          : afterVariation
-          ? `${moveNumber}... ${node.move}`
-          : ` ${node.move}`;
-      }
+    // If the node has an actual move (i.e., not the root),
+    // then print the move number and SAN.
+    if (node.move) {
+      const moveText = isWhiteTurn
+        ? `${moveNumber}. ${node.move}`
+        : ` ${node.move}`;
+  
       moveList.push({
         text: moveText,
-        annotation: node.annotation || "",
-        path: [...currentPath],
+        path: [...currentPath, node],
         isVariation,
         variationDepth,
       });
-      if (!isWhiteTurn) {
-        moveNumber += 1;
-      }
-      isWhiteTurn = !isWhiteTurn;
-    }
-
-    if (node.children.length > 0) {
-      const mainChild = node.children[0];
-      const hasVariations = node.children.length > 1;
-
-      if (mainChild.move) {
-        const mainMoveText = isWhiteTurn
-          ? `${moveNumber}. ${mainChild.move}`
-          : afterVariation
-          ? `${moveNumber}... ${mainChild.move}`
-          : ` ${mainChild.move}`;
-
+  
+      // If there's an annotation, push it too
+      if (node.annotation) {
         moveList.push({
-          text: mainMoveText,
-          annotation: mainChild.annotation || "",
-          path: [...currentPath, mainChild],
+          text: `{${node.annotation}}`,
+          isAnnotation: true,
           isVariation,
           variationDepth,
         });
-
-        const updatedIsWhiteTurn = !isWhiteTurn;
-        const updatedMoveNumber = !isWhiteTurn ? moveNumber + 1 : moveNumber;
-
-        if (hasVariations) {
-          for (let i = 1; i < node.children.length; i++) {
-            const variationNode = node.children[i];
-            moveList.push({
-              text: "(",
-              isVariationStart: true,
-              variationDepth,
-            });
-            buildMoveList(
-              variationNode,
-              moveNumber,
-              isWhiteTurn,
-              moveList,
-              [...currentPath, variationNode],
-              true,
-              variationDepth + 1,
-              false,
-              false,
-              true
-            );
-            moveList.push({
-              text: ")",
-              isVariationEnd: true,
-              variationDepth,
-            });
-          }
-        }
-
-        buildMoveList(
-          mainChild,
-          updatedMoveNumber,
-          updatedIsWhiteTurn,
-          moveList,
-          [...currentPath, mainChild],
-          isVariation,
+      }
+  
+      // 🔴 Here is where we flip color & increment moveNumber
+      //    (only after we handle a real move).
+      moveNumber = isWhiteTurn ? moveNumber : moveNumber + 1;
+      isWhiteTurn = !isWhiteTurn;
+    }
+  
+    // Now recurse on children
+    if (node.children.length > 0) {
+      // The "main line" is the first child
+      buildMoveList(
+        node.children[0],
+        moveNumber,
+        isWhiteTurn,
+        moveList,
+        [...currentPath, node.children[0]],
+        false,            // isVariation
+        variationDepth
+      );
+  
+      // If there are extra children, those are variations
+      for (let i = 1; i < node.children.length; i++) {
+        const variationNode = node.children[i];
+  
+        // Indicate start of variation
+        moveList.push({
+          text: "(",
+          isVariationStart: true,
           variationDepth,
-          true,
-          hasVariations
-        );
-      } else {
+        });
+  
         buildMoveList(
-          mainChild,
+          variationNode,
           moveNumber,
           isWhiteTurn,
           moveList,
-          [...currentPath, mainChild],
-          isVariation,
-          variationDepth,
-          false,
-          afterVariation
+          [...currentPath, variationNode],
+          true,             // isVariation
+          variationDepth + 1
         );
+  
+        // Indicate end of variation
+        moveList.push({
+          text: ")",
+          isVariationEnd: true,
+          variationDepth,
+        });
       }
     }
+  
     return moveList;
   }
 
+
+  /**
+   * Whenever moveTree changes, rebuild the moveList for display.
+   * Also include the final result if known.
+   */
+  
+  /**
+   * Determine if text indicates a White move (like "1. e4") using a regex.
+   */
   const isWhiteTurnFromText = (text) => /^\d+\.\s/.test(text);
 
+  /**
+   * Parse a PGN string into a moveTree with annotation fields.
+   * Also populate players/ELO from PGN headers.
+   */
   const parsePGN = (pgn) => {
-    // console.log("Raw PGN input:", pgn);
-    const normalizedPgn = pgn.includes("\n\n") ? pgn : pgn.replace(/^\[.*?\]\s*(?=\d)/, "$&\n\n");
-    const [parsedPgn] = pgnParser.parse(normalizedPgn);
-    // console.log("Parsed PGN:", parsedPgn);
-  
-    const headers = Array.isArray(parsedPgn.headers)
-      ? parsedPgn.headers.reduce((acc, h) => {
-          acc[h.name] = h.value; // Change h.tag to h.name
-          return acc;
-        }, {})
-      : parsedPgn.headers || {};
-  
-    // console.log("Headers:", headers);
-  
+    const tempChess = new Chess();
+    tempChess.loadPgn(pgn);
+
+    const headers = tempChess.header();
+    // Attempt to see if the last token is a known result
     const possibleResult = (pgn.trim().split(/\s+/).pop() || "").trim();
     let recognizedResult = "*";
     if (["1-0", "0-1", "1/2-1/2", "½-½"].includes(possibleResult)) {
       recognizedResult = possibleResult === "1/2-1/2" ? "½-½" : possibleResult;
     }
-  
+    setFinalResult(recognizedResult);
+
     const startingFen =
-      headers.SetUp === "1" && headers.FEN ? headers.FEN : STARTING_FEN;
+      headers.SetUp === "1" && headers.FEN ? headers.FEN : new Chess().fen();
     const chessInstance = new Chess(startingFen);
-  
+
     const root = {
       move: null,
       fen: startingFen,
       annotation: "",
       children: [],
     };
-  
-    const buildTree = (pgnMoves, currentNode) => {
-      let current = currentNode;
-      const chess = new Chess(current.fen);
-  
-      pgnMoves.forEach((pgnMove) => {
-        const move = chess.move(pgnMove.move);
-        if (!move) return;
-  
-        let mainAnnotationText = "";
-        if (pgnMove.comments) {
-          if (Array.isArray(pgnMove.comments)) {
-            mainAnnotationText = pgnMove.comments
-              .map((comment) =>
-                typeof comment === "string"
-                  ? comment
-                  : comment.text
-                  ? comment.text
-                  : ""
-              )
-              .join(" ");
-          } else {
-            mainAnnotationText =
-              typeof pgnMove.comments === "string"
-                ? pgnMove.comments
-                : pgnMove.comments?.text || "";
-          }
-        }
-  
+    let currentNode = root;
+
+    const moves = tempChess.history();
+    moves.forEach((sanMove) => {
+      const moveResult = chessInstance.move(sanMove);
+      if (moveResult) {
         const newNode = {
-          move: move.san,
-          fen: chess.fen(),
-          annotation: mainAnnotationText,
+          move: moveResult.san,
+          fen: chessInstance.fen(),
+          annotation: "",
           children: [],
         };
-        current.children.push(newNode);
-  
-        if (pgnMove.ravs && pgnMove.ravs.length > 0) {
-          pgnMove.ravs.forEach((variation) => {
-            if (variation.moves && variation.moves.length > 0) {
-              const variationChess = new Chess(current.fen);
-              const variationMove = variationChess.move(variation.moves[0].move);
-              if (variationMove) {
-                let annotationText = "";
-                if (variation.moves[0].comments) {
-                  if (Array.isArray(variation.moves[0].comments)) {
-                    annotationText = variation.moves[0].comments
-                      .map((comment) =>
-                        typeof comment === "string"
-                          ? comment
-                          : comment.text
-                          ? comment.text
-                          : String(comment)
-                      )
-                      .join(" ");
-                  } else {
-                    annotationText = String(variation.moves[0].comments);
-                  }
-                }
-                const variationNode = {
-                  move: variationMove.san,
-                  fen: variationChess.fen(),
-                  annotation: annotationText,
-                  children: [],
-                };
-                current.children.push(variationNode);
-                if (variation.moves.length > 1) {
-                  buildTree(variation.moves.slice(1), variationNode);
-                }
-              }
-            }
-          });
-        }
-  
-        current = newNode;
-      });
-    };
-  
-    buildTree(parsedPgn.moves, root);
-  
-    return {
-      moveTree: root,
-      whitePlayer: headers.White || "White",
-      blackPlayer: headers.Black || "Black",
-      whiteElo: headers.WhiteElo || "",
-      blackElo: headers.BlackElo || "",
-      finalResult: recognizedResult,
-    };
-  };
+        currentNode.children.push(newNode);
+        currentNode = newNode;
+      }
+    });
 
+
+
+    setWhitePlayer(headers.White || "White");
+    setBlackPlayer(headers.Black || "Black");
+    setWhiteElo(headers.WhiteElo || "");
+    setBlackElo(headers.BlackElo || "");
+
+    return root;
+  };
   const moveList = useMemo(() => {
     if (!moveTree) return [];
-
+    
     const fenParts = moveTree.fen.split(" ");
-    const isWhiteTurn = fenParts[1] === "w";
-    const startNum = parseInt(fenParts[5], 10) || 1;
-
+    const isWhiteTurn = fenParts[1] === "w";  // Check if White is to move
+    const startNum = parseInt(fenParts[5], 10) || 1; // Get starting move number
+  
     const list = buildMoveList(moveTree, startNum, isWhiteTurn, [], [moveTree], false, 0);
-
+  
+    // Append the final result if known
     if (finalResult && finalResult !== "*") {
       list.push({ text: finalResult, isResult: true });
     }
-
+  
     return list;
   }, [moveTree, finalResult]);
+  
 
-  const generatePGN = (node, moveNumber = 1, isWhiteTurn = true, forceMoveNumber = false) => {
-    if (node.children.length === 0) {
-      return "";
-    }
-
-    const mainChild = node.children[0];
+  /**
+   * Generate a PGN with ChessBase-style format from our moveTree.
+   */
+  const generatePGN = (node, moveNumber = 1, isWhiteTurn = true, isRoot = true) => {
     let pgn = "";
 
-    if (isWhiteTurn) {
-      pgn += `${moveNumber}. ${mainChild.move} `;
-    } else {
-      if (forceMoveNumber) {
-        pgn += `${moveNumber}... ${mainChild.move} `;
+    // Skip printing move number and SAN on the root node
+    if (!isRoot && node.move) {
+        console.log(isWhiteTurn)
+      if (!isWhiteTurn) {
+        pgn += `${moveNumber}.${node.move} `;
       } else {
-        pgn += `${mainChild.move} `;
+        pgn += ` ${node.move} `;
+      }
+      if (node.annotation) {
+        pgn += `{${node.annotation}} `;
       }
     }
 
-    if (mainChild.annotation) {
-      pgn += `{${mainChild.annotation}} `;
-    }
+    if (node.children.length > 0) {
+      const nextMoveNumber = isWhiteTurn ? moveNumber : moveNumber + 1;
 
-    let hasVariations = node.children.length > 1;
-    if (hasVariations) {
+      // Main line (first child)
+      pgn += generatePGN(node.children[0], nextMoveNumber, !isWhiteTurn, false);
+
+      // Variations: additional children
       for (let i = 1; i < node.children.length; i++) {
         const variationNode = node.children[i];
-        pgn += " (";
-
+        let variationStart;
         if (isWhiteTurn) {
-          pgn += `${moveNumber}. ${variationNode.move} `;
+          variationStart = `${moveNumber}. ${variationNode.move}`;
         } else {
-          pgn += `${moveNumber}... ${variationNode.move} `;
+          variationStart = `${moveNumber}... ${variationNode.move}`;
         }
-
-        if (variationNode.annotation) {
-          pgn += `{${variationNode.annotation}} `;
-        }
-
-        if (variationNode.children.length > 0) {
-          const varNextIsWhiteTurn = !isWhiteTurn;
-          const varNextMoveNumber = isWhiteTurn ? moveNumber : moveNumber + 1;
-          pgn += generatePGN(variationNode, varNextMoveNumber, varNextIsWhiteTurn, false);
-        }
-
-        pgn += ") ";
+        const variationContinuation = generatePGN(
+          variationNode,
+          isWhiteTurn ? moveNumber : moveNumber + 1,
+          !isWhiteTurn,
+          false
+        );
+        // Wrap variation in parentheses
+        pgn += ` (${variationStart}${
+          variationContinuation ? " " + variationContinuation : ""
+        }) `;
       }
-    }
-
-    if (mainChild.children.length > 0) {
-      const nextIsWhiteTurn = !isWhiteTurn;
-      const nextMoveNumber = isWhiteTurn ? moveNumber : moveNumber + 1;
-      const nextForceMoveNumber = hasVariations;
-      pgn += generatePGN(mainChild, nextMoveNumber, nextIsWhiteTurn, nextForceMoveNumber);
     }
 
     return pgn.trim();
   };
 
-  const addPGNHeader = (pgn) => {
-    const header = [
-      `[Event "Chess Game"]`,
-      `[White "${whitePlayer}"]`,
-      `[Black "${blackPlayer}"]`,
-      `[WhiteElo "${whiteElo || ""}"]`,
-      `[BlackElo "${blackElo || ""}"]`,
-      `[Date "${new Date().toISOString().split('T')[0]}"]`,
-    ].join('\n');
-    
-    return `${header}\n\n${pgn}`;
-    
-  };
-  // console.log(addPGNHeader)
-  const generateFullPGN = (rootNode) => {
-    const movesText = generatePGN(rootNode);
-    const result = rootNode.result || finalResult || "*";
-    return addPGNHeader(movesText + " " + result);
-  };
-
+  /**
+   * Save PGN (with annotations and new moves) to the backend database.
+   */
   const savePGNWithAnnotations = async () => {
     if (!moveTree) return;
 
     let pgnBody = "";
     let result = finalResult && finalResult !== "*" ? finalResult : "*";
 
+    // If there's any move in the tree, convert the tree to PGN
     if (moveTree.children.length > 0) {
       const startingFen = moveTree.fen;
       const fenParts = startingFen.split(" ");
       const isWhiteTurn = fenParts[1] === "w";
       const startingMoveNumber = parseInt(fenParts[5], 10) || 1;
       pgnBody = generatePGN(moveTree, startingMoveNumber, isWhiteTurn, true);
-      // console.log("Generated PGN body:", pgnBody);
     }
 
+    // If the final position is obviously game-over, adjust result if needed
     const finalChess = new Chess(moveTree.fen);
+    // Rebuild finalChess from the entire line of the first child
     const buildFenRecursively = (node) => {
-      if (node.children.length > 0) {
-        const mainChild = node.children[0];
-        finalChess.move(mainChild.move);
-        buildFenRecursively(mainChild);
-      }
+      node.children.forEach((child) => {
+        finalChess.move(child.move);
+        buildFenRecursively(child);
+      });
     };
     buildFenRecursively(moveTree);
 
     if (finalChess.isGameOver() && (result === "*" || !result)) {
       if (finalChess.isCheckmate()) {
+        // If checkmate, the side that just moved won
+        // Because Chess.js 'turn()' is the side to move, the side that delivered mate is opposite
         result = finalChess.turn() === "b" ? "1-0" : "0-1";
       } else if (finalChess.isDraw() || finalChess.isStalemate()) {
         result = "½-½";
       }
     }
 
+    // Build standard PGN headers
     let headers = {
       Event: "Chess Game",
       White: whitePlayer,
@@ -443,7 +326,8 @@ export default function GameReview() {
       Date: new Date().toISOString().split("T")[0],
     };
 
-    if (moveTree.fen !== STARTING_FEN) {
+    // If the game didn't start from the normal starting position, store the FEN.
+    if (moveTree.fen !== new Chess().fen()) {
       headers.SetUp = "1";
       headers.FEN = moveTree.fen;
     }
@@ -456,8 +340,13 @@ export default function GameReview() {
     }
     if (pgnBody || result !== "*") {
       fullPGN += "\n" + (pgnBody || "");
+      // Add result at the end
       if (result && result !== "*") {
-        fullPGN += " " + (result === "½-½" ? "1/2-1/2" : result);
+        if (result === "½-½") {
+            result = "1/2-1/2";
+          }
+          fullPGN += " " + result;
+          
       }
     }
 
@@ -468,7 +357,7 @@ export default function GameReview() {
         await updateNotePGN(effectiveGameId, fullPGN);
         setSnackbar({
           open: true,
-          message: "Game updated with new annotations and moves!",
+          message: "PGN with annotations saved!",
           severity: "success",
         });
       } else {
@@ -477,11 +366,11 @@ export default function GameReview() {
         setEffectiveGameId(noteId);
         setSnackbar({
           open: true,
-          message: "New game saved!",
+          message: "New annotated PGN saved!",
           severity: "success",
         });
       }
-      setSelectedPGN(fullPGN);
+      setSelectedPGN(fullPGN); // Ensure we store the updated PGN in global state
       setFinalResult(result);
     } catch (error) {
       console.error("Error saving PGN:", error);
@@ -493,33 +382,47 @@ export default function GameReview() {
     }
   };
 
+  /**
+   * Handle annotation changes for the current move node.
+   */
   const handleAnnotationChange = (value) => {
     if (currentPath.length === 0) return;
+    // The current node is last item in currentPath
     const updatedPath = [...currentPath];
     updatedPath[updatedPath.length - 1].annotation = value;
     setCurrentPath(updatedPath);
 
+    // Also update the global moveTree
     setMoveTree((prev) => {
       const newTree = JSON.parse(JSON.stringify(prev));
+
+      // Walk through newTree using the path's moves
       const walkNodePath = (rootNode, pathIndex) => {
         if (pathIndex >= updatedPath.length) return rootNode;
         const targetMove = updatedPath[pathIndex].move;
         if (!targetMove) {
+          // Root node
           return walkNodePath(rootNode, pathIndex + 1);
         }
+        // Among rootNode.children, find the one with the same move
         const childNode = rootNode.children.find((c) => c.move === targetMove);
         if (!childNode) return rootNode;
         if (pathIndex === updatedPath.length - 1) {
+          // We are at the final node
           childNode.annotation = value;
           return rootNode;
         }
         return walkNodePath(childNode, pathIndex + 1);
       };
+
       walkNodePath(newTree, 0);
       return newTree;
     });
   };
 
+  /**
+   * Navigation handlers
+   */
   const handleBack = () => navigate("/");
 
   const handleDeleteNote = async () => {
@@ -541,6 +444,9 @@ export default function GameReview() {
   const toggleBoardOrientation = () =>
     setBoardOrientation((prev) => (prev === "white" ? "black" : "white"));
 
+  /**
+   * Stockfish integration to get engine evaluations
+   */
   const analyzePositionSafely = () => {
     if (stockfish && !stockfish.isAnalyzing) {
       stockfish.isAnalyzing = true;
@@ -550,6 +456,9 @@ export default function GameReview() {
     }
   };
 
+  /**
+   * Jump to a move by index in currentPath.
+   */
   const goToMove = (pathIndex) => {
     if (pathIndex < 0 || pathIndex >= currentPath.length) return;
     const targetNode = currentPath[pathIndex];
@@ -561,6 +470,10 @@ export default function GameReview() {
     setTopLine("");
   };
 
+  /**
+   * Handle a piece drop. If it's valid, either follow an existing branch
+   * or create a new variation node.
+   */
   const onPieceDrop = (sourceSquare, targetSquare) => {
     if (currentPath.length === 0) return false;
     const currentNode = currentPath[currentPath.length - 1];
@@ -573,12 +486,14 @@ export default function GameReview() {
       });
       if (move === null) return false;
 
+      // If there's already a child with this move, we go down that line
       const existingChild = currentNode.children.find(
         (child) => child.move === move.san
       );
       if (existingChild) {
         setCurrentPath([...currentPath, existingChild]);
       } else {
+        // Otherwise, create a new node in the moveTree
         const newNode = {
           move: move.san,
           fen: newChess.fen(),
@@ -587,6 +502,8 @@ export default function GameReview() {
         };
         setMoveTree((prevTree) => {
           const newTree = JSON.parse(JSON.stringify(prevTree));
+
+          // Follow the path in newTree
           const walkNodePath = (rootNode, pathIndex) => {
             if (pathIndex >= currentPath.length) return rootNode;
             const targetMove = currentPath[pathIndex].move;
@@ -598,11 +515,13 @@ export default function GameReview() {
             );
             if (!childNode) return rootNode;
             if (pathIndex === currentPath.length - 1) {
+              // Insert the new child here
               childNode.children.push(newNode);
               return rootNode;
             }
             return walkNodePath(childNode, pathIndex + 1);
           };
+
           walkNodePath(newTree, 0);
           return newTree;
         });
@@ -617,9 +536,12 @@ export default function GameReview() {
     }
   };
 
+  /**
+   * Add keyboard shortcuts for prev/next move (arrow keys) and flipping board (f).
+   */
   useEffect(() => {
     const handleKeyDown = (event) => {
-      if (document.activeElement.tagName === "TEXTAREA") return;
+      if (document.activeElement.tagName === "TEXTAREA") return; // avoid conflicts in text fields
       if (currentPath.length === 0) return;
 
       const currentNode = currentPath[currentPath.length - 1];
@@ -650,99 +572,55 @@ export default function GameReview() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [currentPath]);
 
-  // Modified useEffect for selectedPGN
+  /**
+   * Whenever selectedPGN changes, parse it into a move tree.
+   */
   useEffect(() => {
-    // console.log("selectedPGN changed:", selectedPGN);
     if (selectedPGN) {
       try {
-        const parsedData = parsePGN(selectedPGN);
-        // console.log("Parsed Data:", parsedData);
-  
-        // Update state with parsed data
-        setMoveTree(parsedData.moveTree);
-        setCurrentPath([parsedData.moveTree]);
-        const newChess = new Chess(parsedData.moveTree.fen);
+        const newChess = new Chess();
+        newChess.loadPgn(selectedPGN);
+        const parsedTree = parsePGN(selectedPGN);
+        setMoveTree(parsedTree);
+        setCurrentPath([parsedTree]);
         setChess(newChess);
-        setFen(parsedData.moveTree.fen);
-        setWhitePlayer(parsedData.whitePlayer);
-        setBlackPlayer(parsedData.blackPlayer);
-        setWhiteElo(parsedData.whiteElo);
-        setBlackElo(parsedData.blackElo);
-        setFinalResult(parsedData.finalResult);
+        setFen(newChess.fen());
       } catch (error) {
         console.error("Error loading PGN:", error);
-        const newChess = new Chess(STARTING_FEN);
-        setChess(newChess);
-        setFen(STARTING_FEN);
-        setMoveTree({
-          move: null,
-          fen: STARTING_FEN,
-          annotation: "",
-          children: [],
-        });
-        setCurrentPath([
-          {
-            move: null,
-            fen: STARTING_FEN,
-            annotation: "",
-            children: [],
-          },
-        ]);
-        setWhitePlayer("White");
-        setBlackPlayer("Black");
-        setWhiteElo("");
-        setBlackElo("");
-        setFinalResult("*");
       }
     }
   }, [selectedPGN]);
 
+  /**
+   * If we have a gameId from the URL, load that note from the store (if not loaded already).
+   */
   useEffect(() => {
     if (!gameId || !notes.length || isNoteInitialized) return;
     const note = notes.find((n) => n.id === parseInt(gameId));
     if (note) {
       setEffectiveGameId(gameId);
       if (note.pgn) {
-        // console.log("PGN Loaded from Saved Note:", note.pgn);
         setSelectedPGN(note.pgn);
-        const parsedData = parsePGN(note.pgn);
-        setMoveTree(parsedData.moveTree);
-        setCurrentPath([parsedData.moveTree]);
-        const newChess = new Chess(parsedData.moveTree.fen);
-        setChess(newChess);
-        setFen(parsedData.moveTree.fen);
-        setWhitePlayer(parsedData.whitePlayer);
-        setBlackPlayer(parsedData.blackPlayer);
-        setWhiteElo(parsedData.whiteElo);
-        setBlackElo(parsedData.blackElo);
-        setFinalResult(parsedData.finalResult);
       } else {
-        console.log("No PGN found in note, initializing new game.");
-        const newChess = new Chess(STARTING_FEN);
+        const newChess = new Chess();
         const initialNode = {
           move: null,
-          fen: STARTING_FEN,
+          fen: newChess.fen(),
           annotation: "",
           children: [],
         };
         setChess(newChess);
-        setFen(STARTING_FEN);
+        setFen(newChess.fen());
         setMoveTree(initialNode);
         setCurrentPath([initialNode]);
-        setWhitePlayer("White");
-        setBlackPlayer("Black");
-        setWhiteElo("");
-        setBlackElo("");
-        setFinalResult("*");
       }
       setIsNoteInitialized(true);
     }
   }, [gameId, notes, isNoteInitialized, setSelectedPGN]);
 
-  useEffect(() => {
-    // console.log("Player state updated:", { whitePlayer, blackPlayer, whiteElo, blackElo });
-  }, [whitePlayer, blackPlayer, whiteElo, blackElo]);
-
+  /**
+   * Stockfish setup
+   */
   useEffect(() => {
     const stockfishWorker = new Worker("/stockfish-17-single.js");
     let isStockfishReady = false;
@@ -761,6 +639,7 @@ export default function GameReview() {
           let scoreValue = parseInt(parts[scoreIndex + 2], 10);
           const pvIndex = parts.indexOf("pv");
           if (pvIndex !== -1) {
+            // Attempt to parse the PV
             const pvMoves = parts.slice(pvIndex + 1).join(" ");
             const tempChess = new Chess(chess.fen());
             const moveArray = pvMoves.split(" ").filter((move) => move.length >= 4);
@@ -791,6 +670,7 @@ export default function GameReview() {
           }
           let evalText = "";
           if (scoreType === "cp") {
+            // If black to move, invert the score
             const adjustedScore = chess.turn() === "b" ? -scoreValue : scoreValue;
             const score = adjustedScore / 100;
             evalText = `Eval: ${score > 0 ? "+" : ""}${score}`;
@@ -819,9 +699,13 @@ export default function GameReview() {
     analyzePositionSafely();
   }, [stockfish, chess]);
 
+  /**
+   * Render
+   */
   return (
     <>
       <Grid container spacing={3}>
+        {/* Left / Board */}
         <Grid
           item
           xs={12}
@@ -888,9 +772,7 @@ export default function GameReview() {
                       setFen(newChess.fen());
                     }
                   }}
-                  disabled={
-                    moveTree.children.length === 0 && currentPath.length === 0
-                  }
+                  disabled={moveTree.children.length === 0 && currentPath.length === 0}
                   endIcon={<ArrowForwardIcon />}
                   size="small"
                 >
@@ -909,6 +791,7 @@ export default function GameReview() {
           </Card>
         </Grid>
 
+        {/* Right / Move List + Annotation */}
         <Grid item xs={12} md={6}>
           <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
             <CardContent sx={{ flexGrow: 1 }}>
@@ -950,143 +833,127 @@ export default function GameReview() {
               </Button>
 
               <Card sx={{ mt: 2, height: "100%" }}>
-  <CardContent sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-    <Typography variant="h6">Move List</Typography>
-    <Box sx={{ flexGrow: 1, overflowY: "auto", border: "1px solid #e0e0e0", p: 2 }}>
-      {moveList.length > 0 ? (
-        (() => {
-          const lines = [];
-          let currentLine = [];
-          let currentVariationDepth = 0;
-
-          // Get the current node from currentPath
-          const currentNode = currentPath[currentPath.length - 1];
-
-          moveList.forEach((item, index) => {
-            const isWhiteMove = /^\d+\.\s/.test(item.text);
-            const isBlackVariationMove = /^\d+\.\.\.\s/.test(item.text);
-
-            const pushMoveBox = (extraStyles = {}) => {
-              // Check if this move is the current one
-              const isCurrentMove =
-                item.path &&
-                item.path.length > 0 &&
-                currentNode &&
-                item.path[item.path.length - 1] === currentNode;
-
-              return (
-                <Box
-                  key={`mv-${index}`}
-                  component="span"
-                  sx={{
-                    ...extraStyles,
-                    ml: `${currentVariationDepth * 20}px`,
-                    cursor: item.path ? "pointer" : "default",
-                    backgroundColor: isCurrentMove ? "#e0f7fa" : "transparent", // Highlight color
-                    p: "2px 4px",
-                    mr: 1,
-                    borderRadius: "4px", // Optional: rounded corners for highlight
-                  }}
-                  onClick={() => {
-                    if (item.path) {
-                      setCurrentPath(item.path);
-                      const newChess = new Chess(item.path[item.path.length - 1].fen);
-                      setChess(newChess);
-                      setFen(newChess.fen());
-                    }
-                  }}
+                <CardContent
+                  sx={{ height: "100%", display: "flex", flexDirection: "column" }}
                 >
-                  {item.text}{" "}
-                  {item.annotation && (
-                    <Box
-                      component="span"
-                      sx={{
-                        fontWeight: "bold",
-                        fontStyle: "italic",
-                        color: "#555",
-                      }}
-                    >
-                      {item.annotation}
-                    </Box>
-                  )}
-                </Box>
-              );
-            };
+                  <Typography variant="h6">Move List</Typography>
+                  <Box
+                    sx={{
+                      flexGrow: 1,
+                      overflowY: "auto",
+                      border: "1px solid #e0e0e0",
+                      p: 2,
+                    }}
+                  >
+                    {moveList.length > 0 ? (
+                      (() => {
+                        const lines = [];
+                        let currentLine = [];
 
-            if (item.isVariationStart) {
-              if (currentLine.length > 0) {
-                lines.push(
-                  <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
-                    {currentLine}
-                  </Box>
-                );
-                currentLine = [];
-              }
-              currentVariationDepth = item.variationDepth + 1;
-              currentLine.push(
-                <Box key={`var-start-${index}`} component="span">
-                  (
-                </Box>
-              );
-            } else if (item.isVariationEnd) {
-              currentLine.push(
-                <Box key={`var-end-${index}`} component="span">
-                  )
-                </Box>
-              );
-              lines.push(
-                <Box
-                  key={`line-${lines.length}`}
-                  sx={{ mb: 0.5, ml: `${currentVariationDepth * 20}px` }}
-                >
-                  {currentLine}
-                </Box>
-              );
-              currentLine = [];
-              currentVariationDepth = item.variationDepth;
-            } else if (item.isResult) {
-              if (currentLine.length > 0) {
-                lines.push(
-                  <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
-                    {currentLine}
-                  </Box>
-                );
-              }
-              lines.push(
-                <Box key={`result-${index}`} sx={{ mt: 2, fontWeight: "bold" }}>
-                  {item.text}
-                </Box>
-              );
-              currentLine = [];
-            } else {
-              currentLine.push(pushMoveBox());
-              if ((!isWhiteMove && !item.isVariation) || isBlackVariationMove) {
-                lines.push(
-                  <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
-                    {currentLine}
-                  </Box>
-                );
-                currentLine = [];
-              }
-            }
-          });
+                        // Helper to push a box with optional indentation
+                        const pushBox = (item, keyIdx, extraStyles = {}) => {
+                          // Indent annotations and variations
+                          // Use item.variationDepth to create multiple indentation levels if needed
+                          const baseIndent = item.variationDepth || 0;
+                          const marginLeft = 10 + 20 * baseIndent;
+                          // Variation text in parentheses or annotation can have a bit more margin
+                          return (
+                            <Box
+                              key={keyIdx}
+                              component="span"
+                              sx={{
+                                ...extraStyles,
+                                ml: `${marginLeft}px`,
+                                cursor: item.path ? "pointer" : "default",
+                                backgroundColor:
+                                  item.path &&
+                                  currentPath[currentPath.length - 1] ===
+                                    item.path[item.path.length - 1]
+                                    ? "#e0e0e0"
+                                    : "transparent",
+                                p: item.isVariationStart || item.isVariationEnd
+                                  ? 0
+                                  : "2px 4px",
+                                mr: 1,
+                                fontWeight: item.isAnnotation ? "bold" : "normal",
+                                color: item.isAnnotation ? "purple" : "inherit",
+                              }}
+                              onClick={() => {
+                                if (item.path) {
+                                  setCurrentPath(item.path);
+                                  const newChess = new Chess(
+                                    item.path[item.path.length - 1].fen
+                                  );
+                                  setChess(newChess);
+                                  setFen(newChess.fen());
+                                }
+                              }}
+                            >
+                              {item.text}
+                            </Box>
+                          );
+                        };
 
-          if (currentLine.length > 0) {
-            lines.push(
-              <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
-                {currentLine}
-              </Box>
-            );
-          }
+                        moveList.forEach((item, index) => {
+                          if (item.isVariationStart) {
+                            // '(' to denote variation start
+                            lines.push(currentLine);
+                            currentLine = [pushBox(item, `vs-${index}`)];
+                          } else if (item.isVariationEnd) {
+                            // ')' to denote variation end
+                            currentLine.push(pushBox(item, `ve-${index}`));
+                            lines.push(currentLine);
+                            currentLine = [];
+                          } else if (item.isAnnotation) {
+                            // Put annotation as a separate line
+                            lines.push(currentLine);
+                            currentLine = [
+                              pushBox(item, `ann-${index}`, {
+                                display: "block",
+                                mt: 0.5,
+                                mb: 0.5,
+                              }),
+                            ];
+                          } else if (item.isResult) {
+                            // Final result
+                            lines.push(currentLine);
+                            currentLine = [
+                              <Box key={index} sx={{ mt: 2, fontWeight: "bold" }}>
+                                {item.text}
+                              </Box>,
+                            ];
+                            lines.push(currentLine);
+                            currentLine = [];
+                          } else {
+                            // Normal move
+                            currentLine.push(pushBox(item, `mv-${index}`));
 
-          return lines;
-        })()
-      ) : (
-        <Typography variant="body2">No moves yet</Typography>
-      )}
-    </Box>
-  </CardContent>
-</Card>
+                            // If we just processed a black move, break the line
+                            if (!isWhiteTurnFromText(item.text)) {
+                              lines.push(currentLine);
+                              currentLine = [];
+                            }
+                          }
+                        });
+
+                        // If anything is left in currentLine, push it
+                        if (currentLine.length) {
+                          lines.push(currentLine);
+                        }
+
+                        // Render lines
+                        return lines.map((line, idx) => (
+                          <Box key={`line-${idx}`} sx={{ mb: 0.5 }}>
+                            {line}
+                          </Box>
+                        ));
+                      })()
+                    ) : (
+                      <Typography variant="body2">No moves yet</Typography>
+                    )}
+                  </Box>
+                </CardContent>
+              </Card>
             </CardContent>
           </Card>
         </Grid>
@@ -1109,3 +976,37 @@ export default function GameReview() {
     </>
   );
 }
+
+/*
+----------------------------------------------------------------------------------
+Instructions (Saved for Future Reference):
+
+I want you to look through the Chess.js library to understand how it works. Then 
+examine my code. I want the program to be able to load a PGN from chess.com 
+and load it onto a chessboard (it already does). I want a "Move List" box 
+to be able to play through the moves (as it currently does). I then want 
+the ability to play a variation (with the purpose of studying the correct line) 
+and be able to write annotations for each move in an input box.
+
+I want to be able to have it both save the annotation and the new move.
+
+1. Once I click "Save" it should update the Moves List with the new annotation 
+   and move in the ChessBase type of format. This format includes:
+     - Main moves in a list
+     - Variations appear inside parentheses () and are indented
+     - Annotations are indented and bold
+     - Variations interrupt the main line but then it resumes cleanly
+     - If the white move is annotated before the black move, the next black move
+       should resume with the same move number but have "..." before it.
+
+   Example:
+   1. e4
+     the most popular opening
+   1... e5
+
+   If there is an annotation in a variation, it should be indented further in 
+   the variation.
+   The game conclusion (1-0, 0-1, or ½-½) appears at the bottom.
+
+----------------------------------------------------------------------------------
+*/

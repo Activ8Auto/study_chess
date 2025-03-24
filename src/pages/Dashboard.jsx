@@ -18,71 +18,81 @@ function Dashboard() {
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
   const [games, setGames] = useState([]);
   const [filter, setFilter] = useState("date");
-  const [view, setView] = useState("games");
+  const [view, setView] = useState("games"); // Default to "notes" for clarity
   const [loading, setLoading] = useState(false);
   const [year, setYear] = useState(new Date().getFullYear().toString());
   const [month, setMonth] = useState(
-    (new Date().getMonth() + 1).toString().padStart(2, "0"),
+    (new Date().getMonth() + 1).toString().padStart(2, "0")
   );
   const user = "taylorandrews";
   const navigate = useNavigate();
 
+  // Fetch notes on mount and log the result
   useEffect(() => {
-    console.log("Rendering Dashboard with notes:", notes);
-    if (notes.length === 0) {
-      fetchNotes();
-    }
-  }, [fetchNotes, notes.length]);
+    const loadNotes = async () => {
+      setLoading(true);
+      try {
+        await fetchNotes();
+        // console.log("Notes fetched successfully:", notes);
+      } catch (error) {
+        console.error("Error fetching notes:", error);
+        setSnackbar({ open: true, message: "Failed to fetch notes.", severity: "error" });
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadNotes();
+  }, [fetchNotes]);
 
+  // Fetch Chess.com games when view switches to "games" or year/month changes
   useEffect(() => {
-    async function fetchChessGames() {
+    if (view !== "games") return;
+
+    const fetchGames = async () => {
       setLoading(true);
       try {
         const response = await fetch(
-          `https://api.chess.com/pub/player/${user}/games/${year}/${month}`,
+          `https://api.chess.com/pub/player/${user}/games/${year}/${month}`
         );
+        if (!response.ok) throw new Error("Failed to fetch Chess.com games");
         const data = await response.json();
-        setGames(data.games);
+        // console.log("Fetched Chess.com games:", data.games);
+        setGames(data.games || []);
       } catch (error) {
         console.error("Error fetching Chess.com games:", error);
+        setSnackbar({ open: true, message: "Failed to fetch games.", severity: "error" });
         setGames([]);
       } finally {
         setLoading(false);
       }
-    }
-    if (view === "games") {
-      fetchChessGames();
-    }
-  }, [user, year, month, view]);
+    };
+    fetchGames();
+  }, [view, year, month, user]);
 
   const handleGameSelect = (game) => {
-    setSelectedPGN(game.pgn); // Set PGN for Chess.com games
-    const gameId = `chesscom-${game.id || Date.now()}`;
+    setSelectedPGN(game.pgn);
+    const gameId = `chesscom-${Date.now()}`;
     navigate(`/game/${gameId}`);
   };
 
   const handleNoteSelect = (note) => {
-    if (note.pgn) {
-      setSelectedPGN(note.pgn);
-    } else {
-      setSelectedPGN(null);
-    }
+    setSelectedPGN(note.pgn);
     navigate(`/game/${note.id}`);
   };
 
   const handleDeleteNote = async (noteId) => {
     try {
       await deleteNote(noteId);
-      setSnackbar({ open: true, message: "Notes deleted successfully!", severity: "success" });
+      setSnackbar({ open: true, message: "Note deleted successfully!", severity: "success" });
     } catch (error) {
       console.error("Failed to delete note:", error);
-      alert("Failed to delete note. Please try again.");
+      setSnackbar({ open: true, message: "Failed to delete note.", severity: "error" });
     }
   };
 
   const sortedNotes = [...notes].sort((a, b) => {
     if (filter === "date") {
-      const dateA = a.last_modified || a.created_at || 0; // Match server field name
+      const dateA = a.last_modified || a.created_at || 0;
       const dateB = b.last_modified || b.created_at || 0;
       return new Date(dateB) - new Date(dateA);
     } else if (filter === "timeControl") {
@@ -109,7 +119,8 @@ function Dashboard() {
     );
   });
 
-  console.log("Rendering Dashboard with notes:", notes);
+  // console.log("Rendering Dashboard with notes:", notes, "and games:", games);
+
   return (
     <div>
       <Typography variant="h4" gutterBottom>
@@ -171,7 +182,9 @@ function Dashboard() {
         </div>
       </div>
 
-      {view === "notes" ? (
+      {loading ? (
+        <CircularProgress />
+      ) : view === "notes" ? (
         sortedNotes.length === 0 ? (
           <Typography>No notes found.</Typography>
         ) : (
@@ -183,8 +196,8 @@ function Dashboard() {
                   {note.last_modified
                     ? new Date(note.last_modified).toLocaleDateString()
                     : note.created_at
-                      ? new Date(note.created_at).toLocaleDateString()
-                      : "No Date"}
+                    ? new Date(note.created_at).toLocaleDateString()
+                    : "No Date"}
                 </Typography>
                 <Button
                   variant="outlined"
@@ -205,8 +218,6 @@ function Dashboard() {
             </Card>
           ))
         )
-      ) : loading ? (
-        <CircularProgress />
       ) : games.length === 0 ? (
         <Typography>No games found.</Typography>
       ) : (
@@ -227,22 +238,22 @@ function Dashboard() {
           </Card>
         ))
       )}
+
       <Snackbar
-    open={snackbar.open}
-    autoHideDuration={3000}
-    onClose={() => setSnackbar({ ...snackbar, open: false })}
-    anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-  >
-    <Alert
-      onClose={() => setSnackbar({ ...snackbar, open: false })}
-      severity={snackbar.severity}
-      variant="filled"
-    >
-      {snackbar.message}
-    </Alert>
-  </Snackbar>
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          variant="filled"
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </div>
-    
   );
 }
 
