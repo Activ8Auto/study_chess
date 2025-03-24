@@ -14,9 +14,14 @@ import {
   Box,
   Snackbar,
   Alert,
+  Popover,
+  TextField,
+  InputAdornment,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import ShareIcon from "@mui/icons-material/Share";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 
 export default function GameReview() {
   const { gameId } = useParams();
@@ -31,10 +36,8 @@ export default function GameReview() {
     addNote,
   } = useChessStore();
 
-  // Initial FEN for a standard chess starting position
   const STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-  // Initialize state with the starting position
   const [fen, setFen] = useState(STARTING_FEN);
   const [chess, setChess] = useState(new Chess(STARTING_FEN));
   const [moveTree, setMoveTree] = useState({
@@ -60,6 +63,7 @@ export default function GameReview() {
     severity: "success",
   });
   const [finalResult, setFinalResult] = useState("*");
+  const [anchorEl, setAnchorEl] = useState(null); // For Popover anchoring
 
   /**
    * Build a move list (with variations and annotations) for display.
@@ -184,48 +188,46 @@ export default function GameReview() {
     return moveList;
   }
 
-  const isWhiteTurnFromText = (text) => /^\d+\.\s/.test(text);
-
   const parsePGN = (pgn) => {
-    // console.log("Raw PGN input:", pgn);
+    console.log("Raw PGN input:", pgn);
     const normalizedPgn = pgn.includes("\n\n") ? pgn : pgn.replace(/^\[.*?\]\s*(?=\d)/, "$&\n\n");
     const [parsedPgn] = pgnParser.parse(normalizedPgn);
-    // console.log("Parsed PGN:", parsedPgn);
-  
+    console.log("Parsed PGN:", parsedPgn);
+
     const headers = Array.isArray(parsedPgn.headers)
       ? parsedPgn.headers.reduce((acc, h) => {
-          acc[h.name] = h.value; // Change h.tag to h.name
+          acc[h.name] = h.value; // Corrected from h.tag to h.name
           return acc;
         }, {})
       : parsedPgn.headers || {};
-  
-    // console.log("Headers:", headers);
-  
+
+    console.log("Headers:", headers);
+
     const possibleResult = (pgn.trim().split(/\s+/).pop() || "").trim();
     let recognizedResult = "*";
     if (["1-0", "0-1", "1/2-1/2", "½-½"].includes(possibleResult)) {
       recognizedResult = possibleResult === "1/2-1/2" ? "½-½" : possibleResult;
     }
-  
+
     const startingFen =
       headers.SetUp === "1" && headers.FEN ? headers.FEN : STARTING_FEN;
     const chessInstance = new Chess(startingFen);
-  
+
     const root = {
       move: null,
       fen: startingFen,
       annotation: "",
       children: [],
     };
-  
+
     const buildTree = (pgnMoves, currentNode) => {
       let current = currentNode;
       const chess = new Chess(current.fen);
-  
+
       pgnMoves.forEach((pgnMove) => {
         const move = chess.move(pgnMove.move);
         if (!move) return;
-  
+
         let mainAnnotationText = "";
         if (pgnMove.comments) {
           if (Array.isArray(pgnMove.comments)) {
@@ -245,7 +247,7 @@ export default function GameReview() {
                 : pgnMove.comments?.text || "";
           }
         }
-  
+
         const newNode = {
           move: move.san,
           fen: chess.fen(),
@@ -253,7 +255,7 @@ export default function GameReview() {
           children: [],
         };
         current.children.push(newNode);
-  
+
         if (pgnMove.ravs && pgnMove.ravs.length > 0) {
           pgnMove.ravs.forEach((variation) => {
             if (variation.moves && variation.moves.length > 0) {
@@ -290,13 +292,13 @@ export default function GameReview() {
             }
           });
         }
-  
+
         current = newNode;
       });
     };
-  
+
     buildTree(parsedPgn.moves, root);
-  
+
     return {
       moveTree: root,
       whitePlayer: headers.White || "White",
@@ -381,24 +383,46 @@ export default function GameReview() {
     return pgn.trim();
   };
 
-  const addPGNHeader = (pgn) => {
-    const header = [
-      `[Event "Chess Game"]`,
-      `[White "${whitePlayer}"]`,
-      `[Black "${blackPlayer}"]`,
-      `[WhiteElo "${whiteElo || ""}"]`,
-      `[BlackElo "${blackElo || ""}"]`,
-      `[Date "${new Date().toISOString().split('T')[0]}"]`,
-    ].join('\n');
-    
-    return `${header}\n\n${pgn}`;
-    
-  };
-  // console.log(addPGNHeader)
-  const generateFullPGN = (rootNode) => {
-    const movesText = generatePGN(rootNode);
-    const result = rootNode.result || finalResult || "*";
-    return addPGNHeader(movesText + " " + result);
+  const generateFullPGN = () => {
+    let pgnBody = "";
+    let result = finalResult && finalResult !== "*" ? finalResult : "*";
+
+    if (moveTree.children.length > 0) {
+      const startingFen = moveTree.fen;
+      const fenParts = startingFen.split(" ");
+      const isWhiteTurn = fenParts[1] === "w";
+      const startingMoveNumber = parseInt(fenParts[5], 10) || 1;
+      pgnBody = generatePGN(moveTree, startingMoveNumber, isWhiteTurn, true);
+    }
+
+    let headers = {
+      Event: "Chess Game",
+      White: whitePlayer,
+      Black: blackPlayer,
+      WhiteElo: whiteElo || "",
+      BlackElo: blackElo || "",
+      Date: new Date().toISOString().split("T")[0],
+    };
+
+    if (moveTree.fen !== STARTING_FEN) {
+      headers.SetUp = "1";
+      headers.FEN = moveTree.fen;
+    }
+
+    let fullPGN = "";
+    for (const [key, value] of Object.entries(headers)) {
+      if (value !== undefined && value !== null) {
+        fullPGN += `[${key} "${value}"]\n`;
+      }
+    }
+    if (pgnBody || result !== "*") {
+      fullPGN += "\n" + (pgnBody || "");
+      if (result && result !== "*") {
+        fullPGN += " " + (result === "½-½" ? "1/2-1/2" : result);
+      }
+    }
+
+    return fullPGN;
   };
 
   const savePGNWithAnnotations = async () => {
@@ -413,7 +437,6 @@ export default function GameReview() {
       const isWhiteTurn = fenParts[1] === "w";
       const startingMoveNumber = parseInt(fenParts[5], 10) || 1;
       pgnBody = generatePGN(moveTree, startingMoveNumber, isWhiteTurn, true);
-      // console.log("Generated PGN body:", pgnBody);
     }
 
     const finalChess = new Chess(moveTree.fen);
@@ -617,6 +640,34 @@ export default function GameReview() {
     }
   };
 
+  const handleShareClick = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleShareClose = () => {
+    setAnchorEl(null);
+  };
+
+  const copyToClipboard = (text, type) => {
+    navigator.clipboard.writeText(text).then(
+      () => {
+        setSnackbar({
+          open: true,
+          message: `${type} copied to clipboard!`,
+          severity: "success",
+        });
+      },
+      (err) => {
+        console.error("Failed to copy:", err);
+        setSnackbar({
+          open: true,
+          message: `Failed to copy ${type}.`,
+          severity: "error",
+        });
+      }
+    );
+  };
+
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (document.activeElement.tagName === "TEXTAREA") return;
@@ -650,15 +701,13 @@ export default function GameReview() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [currentPath]);
 
-  // Modified useEffect for selectedPGN
   useEffect(() => {
-    // console.log("selectedPGN changed:", selectedPGN);
+    console.log("selectedPGN changed:", selectedPGN);
     if (selectedPGN) {
       try {
         const parsedData = parsePGN(selectedPGN);
-        // console.log("Parsed Data:", parsedData);
-  
-        // Update state with parsed data
+        console.log("Parsed Data:", parsedData);
+
         setMoveTree(parsedData.moveTree);
         setCurrentPath([parsedData.moveTree]);
         const newChess = new Chess(parsedData.moveTree.fen);
@@ -703,7 +752,7 @@ export default function GameReview() {
     if (note) {
       setEffectiveGameId(gameId);
       if (note.pgn) {
-        // console.log("PGN Loaded from Saved Note:", note.pgn);
+        console.log("PGN Loaded from Saved Note:", note.pgn);
         setSelectedPGN(note.pgn);
         const parsedData = parsePGN(note.pgn);
         setMoveTree(parsedData.moveTree);
@@ -740,7 +789,7 @@ export default function GameReview() {
   }, [gameId, notes, isNoteInitialized, setSelectedPGN]);
 
   useEffect(() => {
-    // console.log("Player state updated:", { whitePlayer, blackPlayer, whiteElo, blackElo });
+    console.log("Player state updated:", { whitePlayer, blackPlayer, whiteElo, blackElo });
   }, [whitePlayer, blackPlayer, whiteElo, blackElo]);
 
   useEffect(() => {
@@ -819,6 +868,9 @@ export default function GameReview() {
     analyzePositionSafely();
   }, [stockfish, chess]);
 
+  const open = Boolean(anchorEl);
+  const id = open ? "share-popover" : undefined;
+
   return (
     <>
       <Grid container spacing={3}>
@@ -844,7 +896,12 @@ export default function GameReview() {
                 }}
               >
                 <Typography variant="h5">♟️ Game Review</Typography>
-                <IconButton onClick={toggleBoardOrientation}>🔃</IconButton>
+                <Box>
+                  <IconButton onClick={toggleBoardOrientation}>🔃</IconButton>
+                  <IconButton onClick={handleShareClick} aria-describedby={id}>
+                    <ShareIcon />
+                  </IconButton>
+                </Box>
               </Box>
               <Typography variant="body2" sx={{ textAlign: "center", mb: 1 }}>
                 {boardOrientation === "white" ? blackPlayer : whitePlayer}
@@ -950,147 +1007,208 @@ export default function GameReview() {
               </Button>
 
               <Card sx={{ mt: 2, height: "100%" }}>
-  <CardContent sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-    <Typography variant="h6">Move List</Typography>
-    <Box sx={{ flexGrow: 1, overflowY: "auto", border: "1px solid #e0e0e0", p: 2 }}>
-      {moveList.length > 0 ? (
-        (() => {
-          const lines = [];
-          let currentLine = [];
-          let currentVariationDepth = 0;
+                <CardContent sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+                  <Typography variant="h6">Move List</Typography>
+                  <Box sx={{ flexGrow: 1, overflowY: "auto", border: "1px solid #e0e0e0", p: 2 }}>
+                    {moveList.length > 0 ? (
+                      (() => {
+                        const lines = [];
+                        let currentLine = [];
+                        let currentVariationDepth = 0;
 
-          // Get the current node from currentPath
-          const currentNode = currentPath[currentPath.length - 1];
+                        const currentNode = currentPath[currentPath.length - 1];
 
-          moveList.forEach((item, index) => {
-            const isWhiteMove = /^\d+\.\s/.test(item.text);
-            const isBlackVariationMove = /^\d+\.\.\.\s/.test(item.text);
+                        moveList.forEach((item, index) => {
+                          const isWhiteMove = /^\d+\.\s/.test(item.text);
+                          const isBlackVariationMove = /^\d+\.\.\.\s/.test(item.text);
 
-            const pushMoveBox = (extraStyles = {}) => {
-              // Check if this move is the current one
-              const isCurrentMove =
-                item.path &&
-                item.path.length > 0 &&
-                currentNode &&
-                item.path[item.path.length - 1] === currentNode;
+                          const pushMoveBox = (extraStyles = {}) => {
+                            const isCurrentMove =
+                              item.path &&
+                              item.path.length > 0 &&
+                              currentNode &&
+                              item.path[item.path.length - 1] === currentNode;
 
-              return (
-                <Box
-                  key={`mv-${index}`}
-                  component="span"
-                  sx={{
-                    ...extraStyles,
-                    ml: `${currentVariationDepth * 20}px`,
-                    cursor: item.path ? "pointer" : "default",
-                    backgroundColor: isCurrentMove ? "#e0f7fa" : "transparent", // Highlight color
-                    p: "2px 4px",
-                    mr: 1,
-                    borderRadius: "4px", // Optional: rounded corners for highlight
-                  }}
-                  onClick={() => {
-                    if (item.path) {
-                      setCurrentPath(item.path);
-                      const newChess = new Chess(item.path[item.path.length - 1].fen);
-                      setChess(newChess);
-                      setFen(newChess.fen());
-                    }
-                  }}
-                >
-                  {item.text}{" "}
-                  {item.annotation && (
-                    <Box
-                      component="span"
-                      sx={{
-                        fontWeight: "bold",
-                        fontStyle: "italic",
-                        color: "#555",
-                      }}
-                    >
-                      {item.annotation}
-                    </Box>
-                  )}
-                </Box>
-              );
-            };
+                            return (
+                              <Box
+                                key={`mv-${index}`}
+                                component="span"
+                                sx={{
+                                  ...extraStyles,
+                                  ml: `${currentVariationDepth * 20}px`,
+                                  cursor: item.path ? "pointer" : "default",
+                                  backgroundColor: isCurrentMove ? "#e0f7fa" : "transparent",
+                                  p: "2px 4px",
+                                  mr: 1,
+                                  borderRadius: "4px",
+                                }}
+                                onClick={() => {
+                                  if (item.path) {
+                                    setCurrentPath(item.path);
+                                    const newChess = new Chess(item.path[item.path.length - 1].fen);
+                                    setChess(newChess);
+                                    setFen(newChess.fen());
+                                  }
+                                }}
+                              >
+                                {item.text}{" "}
+                                {item.annotation && (
+                                  <Box
+                                    component="span"
+                                    sx={{
+                                      fontWeight: "bold",
+                                      fontStyle: "italic",
+                                      color: "#555",
+                                    }}
+                                  >
+                                    {item.annotation}
+                                  </Box>
+                                )}
+                              </Box>
+                            );
+                          };
 
-            if (item.isVariationStart) {
-              if (currentLine.length > 0) {
-                lines.push(
-                  <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
-                    {currentLine}
+                          if (item.isVariationStart) {
+                            if (currentLine.length > 0) {
+                              lines.push(
+                                <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
+                                  {currentLine}
+                                </Box>
+                              );
+                              currentLine = [];
+                            }
+                            currentVariationDepth = item.variationDepth + 1;
+                            currentLine.push(
+                              <Box key={`var-start-${index}`} component="span">
+                                (
+                              </Box>
+                            );
+                          } else if (item.isVariationEnd) {
+                            currentLine.push(
+                              <Box key={`var-end-${index}`} component="span">
+                                )
+                              </Box>
+                            );
+                            lines.push(
+                              <Box
+                                key={`line-${lines.length}`}
+                                sx={{ mb: 0.5, ml: `${currentVariationDepth * 20}px` }}
+                              >
+                                {currentLine}
+                              </Box>
+                            );
+                            currentLine = [];
+                            currentVariationDepth = item.variationDepth;
+                          } else if (item.isResult) {
+                            if (currentLine.length > 0) {
+                              lines.push(
+                                <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
+                                  {currentLine}
+                                </Box>
+                              );
+                            }
+                            lines.push(
+                              <Box key={`result-${index}`} sx={{ mt: 2, fontWeight: "bold" }}>
+                                {item.text}
+                              </Box>
+                            );
+                            currentLine = [];
+                          } else {
+                            currentLine.push(pushMoveBox());
+                            if ((!isWhiteMove && !item.isVariation) || isBlackVariationMove) {
+                              lines.push(
+                                <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
+                                  {currentLine}
+                                </Box>
+                              );
+                              currentLine = [];
+                            }
+                          }
+                        });
+
+                        if (currentLine.length > 0) {
+                          lines.push(
+                            <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
+                              {currentLine}
+                            </Box>
+                          );
+                        }
+
+                        return lines;
+                      })()
+                    ) : (
+                      <Typography variant="body2">No moves yet</Typography>
+                    )}
                   </Box>
-                );
-                currentLine = [];
-              }
-              currentVariationDepth = item.variationDepth + 1;
-              currentLine.push(
-                <Box key={`var-start-${index}`} component="span">
-                  (
-                </Box>
-              );
-            } else if (item.isVariationEnd) {
-              currentLine.push(
-                <Box key={`var-end-${index}`} component="span">
-                  )
-                </Box>
-              );
-              lines.push(
-                <Box
-                  key={`line-${lines.length}`}
-                  sx={{ mb: 0.5, ml: `${currentVariationDepth * 20}px` }}
-                >
-                  {currentLine}
-                </Box>
-              );
-              currentLine = [];
-              currentVariationDepth = item.variationDepth;
-            } else if (item.isResult) {
-              if (currentLine.length > 0) {
-                lines.push(
-                  <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
-                    {currentLine}
-                  </Box>
-                );
-              }
-              lines.push(
-                <Box key={`result-${index}`} sx={{ mt: 2, fontWeight: "bold" }}>
-                  {item.text}
-                </Box>
-              );
-              currentLine = [];
-            } else {
-              currentLine.push(pushMoveBox());
-              if ((!isWhiteMove && !item.isVariation) || isBlackVariationMove) {
-                lines.push(
-                  <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
-                    {currentLine}
-                  </Box>
-                );
-                currentLine = [];
-              }
-            }
-          });
-
-          if (currentLine.length > 0) {
-            lines.push(
-              <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
-                {currentLine}
-              </Box>
-            );
-          }
-
-          return lines;
-        })()
-      ) : (
-        <Typography variant="body2">No moves yet</Typography>
-      )}
-    </Box>
-  </CardContent>
-</Card>
+                </CardContent>
+              </Card>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
+
+      {/* Share Popover */}
+      <Popover
+        id={id}
+        open={open}
+        anchorEl={anchorEl}
+        onClose={handleShareClose}
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "right",
+        }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "right",
+        }}
+      >
+        <Box sx={{ p: 2, width: 300 }}>
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            Share Game
+          </Typography>
+          <TextField
+            label="PGN"
+            value={generateFullPGN()}
+            multiline
+            rows={4}
+            InputProps={{
+              readOnly: true,
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => copyToClipboard(generateFullPGN(), "PGN")}
+                    edge="end"
+                  >
+                    <ContentCopyIcon />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+            sx={{ width: "100%", mb: 2 }}
+          />
+          <TextField
+            label="FEN"
+            value={fen}
+            InputProps={{
+              readOnly: true,
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => copyToClipboard(fen, "FEN")}
+                    edge="end"
+                  >
+                    <ContentCopyIcon />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+            sx={{ width: "100%", mb: 2 }}
+          />
+          <Button variant="outlined" onClick={handleShareClose} fullWidth>
+            Close
+          </Button>
+        </Box>
+      </Popover>
 
       <Snackbar
         open={snackbar.open}
