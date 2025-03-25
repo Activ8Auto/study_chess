@@ -43,6 +43,8 @@ export default function GameReview() {
     fetchNotes,
     selectedPGN,
     deleteNote,
+    analysisResults,        // add this
+    setAnalysisResults,
     setSelectedPGN,
     updateNotePGN,
     addNote,
@@ -55,7 +57,7 @@ export default function GameReview() {
   const [chess, setChess] = useState(new Chess(STARTING_FEN));
   const [mistakeNodes, setMistakeNodes] = useState([]);
   const [mistakeThreshold, setMistakeThreshold] = useState(0.3); // Default 0.5
-const [analysisDepth, setAnalysisDepth] = useState(18); // Default 15
+const [analysisDepth, setAnalysisDepth] = useState(15); // Default 15
 const [settingsAnchorEl, setSettingsAnchorEl] = useState(null); // For menu
   const [moveTree, setMoveTree] = useState({
     move: null,
@@ -363,7 +365,20 @@ const [settingsAnchorEl, setSettingsAnchorEl] = useState(null); // For menu
       isWhiteTurn = !isWhiteTurn;
       if (!isWhiteTurn) moveNumber += 1;
     }
-  
+    const currentNoteId = effectiveGameId || parseInt(gameId, 10);
+    if (currentNoteId) {
+      // Save the analysis results in your global store
+      setAnalysisResults(currentNoteId, moveErrorsList, Array.from(mistakeNodesSet));
+      
+      // Also update local state for immediate UI changes
+      setMoveErrors(moveErrorsList);
+      setMistakeNodes(Array.from(mistakeNodesSet));
+    }
+    
+    setAnalysisProgress(100);
+    setIsAnalyzing(false);
+    stockfishAnalyzer.postMessage("quit");
+    stockfishAnalyzer.terminate();
     setMoveErrors(moveErrorsList);
     setMistakeNodes(Array.from(mistakeNodesSet));
     setAnalysisProgress(100); // Ensure it hits 100% on completion
@@ -934,46 +949,26 @@ const [settingsAnchorEl, setSettingsAnchorEl] = useState(null); // For menu
   }, [selectedPGN]);
 
   useEffect(() => {
-    if (!gameId || !notes.length || isNoteInitialized) return;
-    const note = notes.find((n) => n.id === parseInt(gameId));
-    if (note) {
-      setEffectiveGameId(gameId);
-      if (note.pgn) {
-        console.log("PGN Loaded from Saved Note:", note.pgn);
-        setSelectedPGN(note.pgn);
-        const parsedData = parsePGN(note.pgn);
-        setMoveTree(parsedData.moveTree);
-        setCurrentPath([parsedData.moveTree]);
-        const newChess = new Chess(parsedData.moveTree.fen);
-        setChess(newChess);
-        setFen(parsedData.moveTree.fen);
-        setWhitePlayer(parsedData.whitePlayer);
-        setBlackPlayer(parsedData.blackPlayer);
-        setWhiteElo(parsedData.whiteElo);
-        setBlackElo(parsedData.blackElo);
-        setFinalResult(parsedData.finalResult);
-      } else {
-        console.log("No PGN found in note, initializing new game.");
-        const newChess = new Chess(STARTING_FEN);
-        const initialNode = {
-          move: null,
-          fen: STARTING_FEN,
-          annotation: "",
-          children: [],
-        };
-        setChess(newChess);
-        setFen(STARTING_FEN);
-        setMoveTree(initialNode);
-        setCurrentPath([initialNode]);
-        setWhitePlayer("White");
-        setBlackPlayer("Black");
-        setWhiteElo("");
-        setBlackElo("");
-        setFinalResult("*");
-      }
-      setIsNoteInitialized(true);
+    if (!gameId || !notes.length) return;
+  
+    // find the note
+    const note = notes.find((n) => n.id === parseInt(gameId, 10));
+    if (!note) return;
+  
+    // Set the local states from the store (if any)
+    const existingAnalysis = analysisResults[note.id];
+    if (existingAnalysis) {
+      console.log("Restoring existing analysis from store:", existingAnalysis);
+      setMoveErrors(existingAnalysis.moveErrors);
+      setMistakeNodes(existingAnalysis.mistakeNodes);
+    } else {
+      // no existing analysis
+      setMoveErrors([]);
+      setMistakeNodes([]);
     }
-  }, [gameId, notes, isNoteInitialized, setSelectedPGN]);
+  
+  }, [gameId, notes, analysisResults]);
+  
 
   useEffect(() => {
     // console.log("Player state updated:", { whitePlayer, blackPlayer, whiteElo, blackElo });

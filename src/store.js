@@ -3,43 +3,40 @@ import { persist } from "zustand/middleware";
 import { Chess } from "chess.js";
 
 const parsePGNHeaders = (pgn) => {
-    const chess = new Chess();
-    try {
-      // Extract headers manually
-      const headerLines = pgn.split("\n").filter(line => line.startsWith("["));
-      const headers = {};
-      headerLines.forEach(line => {
-        const match = line.match(/\[(\w+)\s+"([^"]*)"\]/);
-        if (match) headers[match[1]] = match[2];
-      });
-  
-      // Load FEN if present
-      if (headers.SetUp === "1" && headers.FEN) {
-        chess.load(headers.FEN);
-      }
-  
-      // Extract moves section **without** the final result
-      let movesPart = pgn.split("\n\n")[1] || "";
-      
-      
-  
-      if (movesPart) {
-        chess.loadPgn(movesPart, { sloppy: true }); // Load only the clean moves
-      }
-  
-      return {
-        white: headers.White || "Unknown",
-        black: headers.Black || "Unknown",
-        whiteElo: headers.WhiteElo || "",
-        blackElo: headers.BlackElo || "",
-        date: headers.Date || "Unknown Date",
-      };
-    } catch (error) {
-      console.error("Failed to parse PGN headers:", error.message, "PGN:", pgn);
-      throw error;
+  const chess = new Chess();
+  try {
+    // Extract headers manually
+    const headerLines = pgn.split("\n").filter((line) => line.startsWith("["));
+    const headers = {};
+    headerLines.forEach((line) => {
+      const match = line.match(/\[(\w+)\s+"([^"]*)"\]/);
+      if (match) headers[match[1]] = match[2];
+    });
+
+    // Load FEN if present
+    if (headers.SetUp === "1" && headers.FEN) {
+      chess.load(headers.FEN);
     }
-  };
-  
+
+    // Extract moves section **without** the final result
+    let movesPart = pgn.split("\n\n")[1] || "";
+
+    if (movesPart) {
+      chess.loadPgn(movesPart, { sloppy: true }); // Load only the clean moves
+    }
+
+    return {
+      white: headers.White || "Unknown",
+      black: headers.Black || "Unknown",
+      whiteElo: headers.WhiteElo || "",
+      blackElo: headers.BlackElo || "",
+      date: headers.Date || "Unknown Date",
+    };
+  } catch (error) {
+    console.error("Failed to parse PGN headers:", error.message, "PGN:", pgn);
+    throw error;
+  }
+};
 
 const createNoteTitle = (headers) => {
   const { white, black, whiteElo, blackElo, date } = headers;
@@ -51,8 +48,9 @@ const useChessStore = create(
     (set, get) => ({
       notes: [],
       selectedPGN: null,
-      fen: new Chess().fen(), // Add this
-      setFen: (newFen) => set({ fen: newFen }), // Add this
+      fen: new Chess().fen(),
+      analysisResults: {}, // New: Store analysis results by note ID
+      setFen: (newFen) => set({ fen: newFen }),
       fetchNotes: async () => {
         try {
           const response = await fetch("http://localhost:5001/notes");
@@ -77,7 +75,7 @@ const useChessStore = create(
           return data.id;
         } catch (error) {
           console.error("Error adding note:", error);
-          throw error; // Re-throw to propagate to savePGNWithAnnotations
+          throw error;
         }
       },
       updateNotePGN: async (noteId, pgn) => {
@@ -85,8 +83,8 @@ const useChessStore = create(
         if (!note) return;
         const updatedNote = { ...note, pgn };
         try {
-          const response = await fetch(`http://localhost:5001/notes/${noteId}`, { 
-            method: "PUT", 
+          const response = await fetch(`http://localhost:5001/notes/${noteId}`, {
+            method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(updatedNote),
           });
@@ -98,7 +96,6 @@ const useChessStore = create(
           console.error("Error updating note PGN:", error);
         }
       },
-      
       deleteNote: async (noteId) => {
         try {
           await fetch(`http://localhost:5001/notes/${noteId}`, {
@@ -106,14 +103,38 @@ const useChessStore = create(
           });
           set((state) => ({
             notes: state.notes.filter((n) => n.id !== noteId),
+            analysisResults: { ...state.analysisResults, [noteId]: undefined }, // Clear analysis on delete
           }));
         } catch (error) {
           console.error("Error deleting note:", error);
         }
       },
       setSelectedPGN: (pgn) => set({ selectedPGN: pgn }),
+      setAnalysisResults: (noteId, moveErrors, mistakeNodes) =>
+        set((state) => ({
+          analysisResults: {
+            ...state.analysisResults,
+            [noteId]: { moveErrors, mistakeNodes },
+          },
+        })),
+      clearAnalysisResults: (noteId) =>
+        set((state) => ({
+          analysisResults: {
+            ...state.analysisResults,
+            [noteId]: undefined,
+          },
+        })),
     }),
-    { name: "chess-store", getStorage: () => localStorage }
+    {
+      name: "chess-store",
+      getStorage: () => localStorage,
+      partialize: (state) => ({
+        notes: state.notes,
+        selectedPGN: state.selectedPGN,
+        fen: state.fen,
+        analysisResults: state.analysisResults, // Persist analysis results
+      }),
+    }
   )
 );
 
