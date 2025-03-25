@@ -85,8 +85,8 @@ const useChessStore = create(
         if (!note) return;
         const updatedNote = { ...note, pgn };
         try {
-          const response = await fetch(`http://localhost:5001/notes/${noteId}`, {
-            method: "PUT",
+          const response = await fetch(`http://localhost:5001/notes/${noteId}`, { 
+            method: "PUT", 
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(updatedNote),
           });
@@ -98,6 +98,7 @@ const useChessStore = create(
           console.error("Error updating note PGN:", error);
         }
       },
+      
       deleteNote: async (noteId) => {
         try {
           await fetch(`http://localhost:5001/notes/${noteId}`, {

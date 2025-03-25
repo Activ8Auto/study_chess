@@ -4,7 +4,8 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 const { Pool } = require("pg");
 
-const chessRoutes = require("./routes/chessRoutes"); // ✅ Import Chess.com Routes
+// ✅ Import your Chess.com routes
+const chessRoutes = require("./routes/chessRoutes");
 
 const app = express();
 const port = process.env.PORT || 5001;
@@ -13,7 +14,7 @@ const port = process.env.PORT || 5001;
 app.use(cors());
 app.use(bodyParser.json());
 
-// Database connection (assumes db.js is unchanged and connects to your PostgreSQL instance)
+// Database connection
 const pool = require("./db");
 
 // Test database connection
@@ -22,7 +23,7 @@ pool
   .then(() => console.log("Connected to PostgreSQL"))
   .catch((err) => console.error("Database connection error:", err));
 
-// Ensure table exists
+// Ensure the notes_2 table exists
 const createTableQuery = `
   CREATE TABLE IF NOT EXISTS notes_2 (
     id SERIAL PRIMARY KEY,
@@ -37,10 +38,12 @@ pool.query(createTableQuery)
   .then(() => console.log("notes_2 table created or already exists"))
   .catch((err) => console.error("Error creating notes_2 table:", err));
 
-// Chess.com API Routes ✅
+// ✅ Chess.com API routes
 app.use("/api/chess", chessRoutes);
 
-// Notes API Routes
+// ------------------ NOTES API ROUTES ------------------
+
+// GET all notes
 app.get("/notes", async (req, res) => {
   try {
     const result = await pool.query(
@@ -50,6 +53,90 @@ app.get("/notes", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).send("Error retrieving notes from notes_2");
+  }
+});
+
+// GET a single note by ID
+app.get("/notes/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      "SELECT * FROM notes_2 WHERE id = $1",
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).send("Note not found in notes_2");
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error retrieving note from notes_2");
+  }
+});
+
+// POST a new note
+app.post("/notes", async (req, res) => {
+  try {
+    const { title, pgn } = req.body;
+    console.log("Received note for notes_2:", { title, pgn });
+    const result = await pool.query(
+      `INSERT INTO notes_2 (title, pgn, created_at, last_modified)
+       VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       RETURNING *`,
+      [title || "New Game Note", pgn || ""]
+    );
+    console.log("Inserted note into notes_2 with ID:", result.rows[0].id);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error("Server error inserting note into notes_2:", error);
+    res
+      .status(500)
+      .json({ error: "Error adding note to notes_2", details: error.message });
+  }
+});
+
+// PUT update an existing note
+app.put("/notes/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, pgn } = req.body;
+    console.log("PUT /notes/:id - Request body for notes_2:", req.body);
+    const result = await pool.query(
+      `UPDATE notes_2
+       SET title = $1, pgn = $2, last_modified = CURRENT_TIMESTAMP
+       WHERE id = $3
+       RETURNING *`,
+      [title || "New Game Note", pgn || "", id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Note not found in notes_2" });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error updating note in notes_2 - Full error:", err.stack);
+    res
+      .status(500)
+      .json({ error: "Error updating note in notes_2", details: err.message });
+  }
+});
+
+// DELETE a note
+app.delete("/notes/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      "DELETE FROM notes_2 WHERE id = $1 RETURNING id",
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Note not found in notes_2" });
+    }
+    res.status(204).send(); // No content on success
+  } catch (err) {
+    console.error("Error deleting note from notes_2:", err);
+    res
+      .status(500)
+      .json({ error: "Error deleting note from notes_2", details: err.message });
   }
 });
 

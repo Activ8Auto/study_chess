@@ -5,6 +5,17 @@ import { Chessboard } from "react-chessboard";
 import useChessStore from "../store";
 import IconButton from "@mui/material/IconButton";
 import pgnParser from "pgn-parser";
+import { useRef } from "react";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import SettingsIcon from "@mui/icons-material/Settings";
+import Select from "@mui/material/Select";
+import FormControl from "@mui/material/FormControl";
+import Dialog from "@mui/material/Dialog";
+import DialogContent from "@mui/material/DialogContent";
+import DialogTitle from "@mui/material/DialogTitle";
+import LinearProgress from "@mui/material/LinearProgress";
+import InputLabel from "@mui/material/InputLabel";
 import {
   Card,
   CardContent,
@@ -19,6 +30,7 @@ import {
   InputAdornment,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import ShareIcon from "@mui/icons-material/Share";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
@@ -37,9 +49,14 @@ export default function GameReview() {
   } = useChessStore();
 
   const STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState(0); // Progress from 0 to 100
   const [fen, setFen] = useState(STARTING_FEN);
   const [chess, setChess] = useState(new Chess(STARTING_FEN));
+  const [mistakeNodes, setMistakeNodes] = useState([]);
+  const [mistakeThreshold, setMistakeThreshold] = useState(0.3); // Default 0.5
+const [analysisDepth, setAnalysisDepth] = useState(18); // Default 15
+const [settingsAnchorEl, setSettingsAnchorEl] = useState(null); // For menu
   const [moveTree, setMoveTree] = useState({
     move: null,
     fen: STARTING_FEN,
@@ -47,6 +64,7 @@ export default function GameReview() {
     children: [],
   });
   const [currentPath, setCurrentPath] = useState([]);
+  const [moveErrors, setMoveErrors] = useState([]);
   const [boardOrientation, setBoardOrientation] = useState("white");
   const [effectiveGameId, setEffectiveGameId] = useState(null);
   const [whitePlayer, setWhitePlayer] = useState("White");
@@ -56,6 +74,7 @@ export default function GameReview() {
   const [engineEval, setEngineEval] = useState(null);
   const [topLine, setTopLine] = useState("");
   const [stockfish, setStockfish] = useState(null);
+  const stockfishRef = useRef(null);
   const [isNoteInitialized, setIsNoteInitialized] = useState(false);
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -65,6 +84,16 @@ export default function GameReview() {
   const [finalResult, setFinalResult] = useState("*");
   const [anchorEl, setAnchorEl] = useState(null); // For Popover anchoring
 
+
+
+  
+  
+  
+  
+  
+
+  
+  
   /**
    * Build a move list (with variations and annotations) for display.
    */
@@ -188,11 +217,166 @@ export default function GameReview() {
     return moveList;
   }
 
+  const analyzeFullGame = async () => {
+    if (moveTree.children.length === 0) {
+      setSnackbar({
+        open: true,
+        message: "No moves to analyze!",
+        severity: "warning",
+      });
+      return;
+    }
+    setIsAnalyzing(true);
+    setAnalysisProgress(0); // Reset progress
+    console.log("Starting full game analysis...");
+  
+    const stockfishAnalyzer = new Worker("/stockfish-17-single.js");
+    let isReady = false;
+  
+    stockfishAnalyzer.onmessage = (event) => {
+      const message = event.data;
+      if (message === "uciok") {
+        stockfishAnalyzer.postMessage("isready");
+      } else if (message === "readyok") {
+        isReady = true;
+      }
+    };
+    stockfishAnalyzer.postMessage("uci");
+  
+    while (!isReady) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  
+    const getEvaluation = (fen) => {
+      return new Promise((resolve) => {
+        let evaluation = null;
+        const onMessage = (event) => {
+          const message = event.data;
+          if (message.startsWith(`info depth ${analysisDepth}`)) {
+            const parts = message.split(" ");
+            const scoreIndex = parts.indexOf("score");
+            if (scoreIndex !== -1) {
+              const scoreType = parts[scoreIndex + 1];
+              let scoreValue = parseInt(parts[scoreIndex + 2], 10);
+              const turn = fen.split(" ")[1];
+              if (scoreType === "cp") {
+                evaluation = scoreValue / 100;
+                if (turn === "b") evaluation = -evaluation;
+              } else if (scoreType === "mate") {
+                evaluation = scoreValue > 0 ? 100 : -100;
+                if (turn === "b") evaluation = -evaluation;
+              }
+            }
+          } else if (message.startsWith("bestmove")) {
+            stockfishAnalyzer.removeEventListener("message", onMessage);
+            resolve(evaluation);
+          }
+        };
+        stockfishAnalyzer.addEventListener("message", onMessage);
+        stockfishAnalyzer.postMessage(`position fen ${fen}`);
+        stockfishAnalyzer.postMessage(`go depth ${analysisDepth}`);
+        setTimeout(() => {
+          if (evaluation === null) {
+            stockfishAnalyzer.removeEventListener("message", onMessage);
+            resolve(null);
+          }
+        }, 5000);
+      });
+    };
+  
+    // Count total "taylorandrews" moves
+    const countTaylorMoves = (node, isWhiteTurn) => {
+      let count = 0;
+      let current = node;
+      let whiteTurn = isWhiteTurn;
+      const isWhitePlayer = whitePlayer === "taylorandrews";
+      while (current.children.length > 0) {
+        const nextNode = current.children[0];
+        const playerMakingMove = whiteTurn ? whitePlayer : blackPlayer;
+        if (playerMakingMove === "taylorandrews") {
+          count += 1;
+        }
+        current = nextNode;
+        whiteTurn = !whiteTurn;
+      }
+      return count;
+    };
+    const totalTaylorMoves = countTaylorMoves(
+      moveTree,
+      moveTree.fen.split(" ")[1] === "w"
+    );
+    console.log(`Total moves by taylorandrews: ${totalTaylorMoves}`);
+  
+    let currentNode = moveTree;
+    let isWhiteTurn = currentNode.fen.split(" ")[1] === "w";
+    let moveNumber = parseInt(currentNode.fen.split(" ")[5]) || 1;
+    const mistakeNodesSet = new Set();
+    const moveErrorsList = [];
+    const isWhitePlayer = whitePlayer === "taylorandrews";
+    let analyzedTaylorMoves = 0;
+  
+    while (currentNode.children.length > 0) {
+      const nextNode = currentNode.children[0];
+      const playerMakingMove = isWhiteTurn ? whitePlayer : blackPlayer;
+  
+      if (playerMakingMove === "taylorandrews") {
+        const fenBefore = currentNode.fen;
+        const fenAfterTaylorsMove = nextNode.fen;
+  
+        const evalBefore = await getEvaluation(fenBefore);
+        console.log(`Before ${moveNumber}${isWhiteTurn ? "." : "..."} ${nextNode.move}: ${evalBefore}`);
+  
+        let evalAfter = null;
+        if (nextNode.children.length > 0) {
+          const opponentMoveNode = nextNode.children[0];
+          const fenAfterOpponentMove = opponentMoveNode.fen;
+          evalAfter = await getEvaluation(fenAfterOpponentMove);
+          console.log(`After opponent response to ${moveNumber}${isWhiteTurn ? "." : "..."} ${nextNode.move}: ${evalAfter}`);
+        } else {
+          evalAfter = await getEvaluation(fenAfterTaylorsMove);
+          console.log(`Endgame after ${moveNumber}${isWhiteTurn ? "." : "..."} ${nextNode.move}: ${evalAfter}`);
+        }
+  
+        if (evalBefore !== null && evalAfter !== null) {
+          const evalDrop = isWhitePlayer ? evalBefore - evalAfter : evalAfter - evalBefore;
+          if (evalDrop > mistakeThreshold) {
+            const moveText = isWhiteTurn
+              ? `${moveNumber}. ${nextNode.move}`
+              : `${moveNumber}... ${nextNode.move}`;
+            moveErrorsList.push({
+              moveText,
+              evalBefore: evalBefore.toFixed(2),
+              evalAfter: evalAfter.toFixed(2),
+              drop: evalDrop.toFixed(2),
+            });
+            mistakeNodesSet.add(nextNode);
+            console.log(`Mistake: ${moveText}, Before: ${evalBefore}, After: ${evalAfter}, Drop: ${evalDrop}`);
+          }
+        }
+  
+        analyzedTaylorMoves += 1;
+        const progress = totalTaylorMoves > 0 ? (analyzedTaylorMoves / totalTaylorMoves) * 100 : 0;
+        setAnalysisProgress(Math.min(progress, 100)); // Cap at 100%
+      }
+  
+      currentNode = nextNode;
+      isWhiteTurn = !isWhiteTurn;
+      if (!isWhiteTurn) moveNumber += 1;
+    }
+  
+    setMoveErrors(moveErrorsList);
+    setMistakeNodes(Array.from(mistakeNodesSet));
+    setAnalysisProgress(100); // Ensure it hits 100% on completion
+    setIsAnalyzing(false);
+    stockfishAnalyzer.postMessage("quit");
+    stockfishAnalyzer.terminate();
+  };
+
   const parsePGN = (pgn) => {
-    console.log("Raw PGN input:", pgn);
+    // console.log("Raw PGN input:", pgn);
     const normalizedPgn = pgn.includes("\n\n") ? pgn : pgn.replace(/^\[.*?\]\s*(?=\d)/, "$&\n\n");
     const [parsedPgn] = pgnParser.parse(normalizedPgn);
-    console.log("Parsed PGN:", parsedPgn);
+    // console.log("Parsed PGN:", parsedPgn);
 
     const headers = Array.isArray(parsedPgn.headers)
       ? parsedPgn.headers.reduce((acc, h) => {
@@ -201,7 +385,7 @@ export default function GameReview() {
         }, {})
       : parsedPgn.headers || {};
 
-    console.log("Headers:", headers);
+    // console.log("Headers:", headers);
 
     const possibleResult = (pgn.trim().split(/\s+/).pop() || "").trim();
     let recognizedResult = "*";
@@ -226,6 +410,7 @@ export default function GameReview() {
 
       pgnMoves.forEach((pgnMove) => {
         const move = chess.move(pgnMove.move);
+        
         if (!move) return;
 
         let mainAnnotationText = "";
@@ -298,6 +483,7 @@ export default function GameReview() {
     };
 
     buildTree(parsedPgn.moves, root);
+    // console.log("🟢 Initial move tree after parsing:", JSON.stringify(root, null, 2));
 
     return {
       moveTree: root,
@@ -702,14 +888,15 @@ export default function GameReview() {
   }, [currentPath]);
 
   useEffect(() => {
-    console.log("selectedPGN changed:", selectedPGN);
+    // console.log("selectedPGN changed:", selectedPGN);
     if (selectedPGN) {
       try {
         const parsedData = parsePGN(selectedPGN);
-        console.log("Parsed Data:", parsedData);
-
+        // console.log("Parsed Data:", parsedData);
+        // console.log("🟢 Parsed move tree:", parsedData.moveTree);
         setMoveTree(parsedData.moveTree);
         setCurrentPath([parsedData.moveTree]);
+        // console.log("🟢 Initial currentPath set:", JSON.stringify([parsedData.moveTree], null, 2));
         const newChess = new Chess(parsedData.moveTree.fen);
         setChess(newChess);
         setFen(parsedData.moveTree.fen);
@@ -789,7 +976,7 @@ export default function GameReview() {
   }, [gameId, notes, isNoteInitialized, setSelectedPGN]);
 
   useEffect(() => {
-    console.log("Player state updated:", { whitePlayer, blackPlayer, whiteElo, blackElo });
+    // console.log("Player state updated:", { whitePlayer, blackPlayer, whiteElo, blackElo });
   }, [whitePlayer, blackPlayer, whiteElo, blackElo]);
 
   useEffect(() => {
@@ -870,7 +1057,19 @@ export default function GameReview() {
 
   const open = Boolean(anchorEl);
   const id = open ? "share-popover" : undefined;
-
+  const flattenMoveTree = (node) => {
+    let moves = [];
+    if (node.move) {
+      moves.push(node);
+    }
+    if (node.children && node.children.length > 0) {
+      node.children.forEach((child) => {
+        moves = moves.concat(flattenMoveTree(child));
+      });
+    }
+    return moves;
+  };
+  
   return (
     <>
       <Grid container spacing={3}>
@@ -888,21 +1087,69 @@ export default function GameReview() {
         >
           <Card sx={{ height: "100%" }}>
             <CardContent>
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <Typography variant="h5">♟️ Game Review</Typography>
-                <Box>
-                  <IconButton onClick={toggleBoardOrientation}>🔃</IconButton>
-                  <IconButton onClick={handleShareClick} aria-describedby={id}>
-                    <ShareIcon />
-                  </IconButton>
-                </Box>
-              </Box>
+            <Box
+  sx={{
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  }}
+>
+  <Typography variant="h5">♟️ Game Review</Typography>
+  <Box>
+    <IconButton onClick={toggleBoardOrientation}>🔃</IconButton>
+    <IconButton onClick={handleShareClick} aria-describedby={id}>
+      <ShareIcon />
+    </IconButton>
+    <IconButton
+      onClick={(event) => setSettingsAnchorEl(event.currentTarget)}
+      aria-controls={settingsAnchorEl ? "settings-menu" : undefined}
+      aria-haspopup="true"
+    >
+      <SettingsIcon />
+    </IconButton>
+    <Menu
+      id="settings-menu"
+      anchorEl={settingsAnchorEl}
+      open={Boolean(settingsAnchorEl)}
+      onClose={() => setSettingsAnchorEl(null)}
+      anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      transformOrigin={{ vertical: "top", horizontal: "right" }}
+    >
+      <MenuItem sx={{ flexDirection: "column", gap: 2, p: 2 }}>
+        <FormControl fullWidth sx={{ mb: 2 }}>
+          <InputLabel id="mistake-threshold-label">Mistake Threshold</InputLabel>
+          <Select
+            labelId="mistake-threshold-label"
+            value={mistakeThreshold}
+            label="Mistake Threshold"
+            onChange={(e) => setMistakeThreshold(e.target.value)}
+          >
+            {[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8].map((value) => (
+              <MenuItem key={value} value={value}>
+                {value}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <FormControl fullWidth>
+          <InputLabel id="analysis-depth-label">Analysis Depth</InputLabel>
+          <Select
+            labelId="analysis-depth-label"
+            value={analysisDepth}
+            label="Analysis Depth"
+            onChange={(e) => setAnalysisDepth(e.target.value)}
+          >
+            {[14, 15, 16, 17, 18, 19, 20, 21, 22].map((value) => (
+              <MenuItem key={value} value={value}>
+                {value}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      </MenuItem>
+    </Menu>
+  </Box>
+</Box>
               <Typography variant="body2" sx={{ textAlign: "center", mb: 1 }}>
                 {boardOrientation === "white" ? blackPlayer : whitePlayer}
                 {boardOrientation === "white" && blackElo
@@ -997,14 +1244,11 @@ export default function GameReview() {
               >
                 Save PGN
               </Button>
-              <Button
-                variant="contained"
-                color="error"
-                onClick={handleDeleteNote}
-                sx={{ mt: 2 }}
-              >
-                Delete Note
-              </Button>
+              <Button variant="contained" onClick={analyzeFullGame} sx={{ mt: 2, mr: 1 }}>
+  Analyze Full Game
+</Button>
+
+
 
               <Card sx={{ mt: 2, height: "100%" }}>
                 <CardContent sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -1028,7 +1272,8 @@ export default function GameReview() {
                               item.path.length > 0 &&
                               currentNode &&
                               item.path[item.path.length - 1] === currentNode;
-
+                            const isMistake = mistakeNodes.includes(item.path[item.path.length - 1]);
+                          
                             return (
                               <Box
                                 key={`mv-${index}`}
@@ -1041,6 +1286,7 @@ export default function GameReview() {
                                   p: "2px 4px",
                                   mr: 1,
                                   borderRadius: "4px",
+                                  color: isMistake ? "red" : "inherit", // Highlight mistakes in red
                                 }}
                                 onClick={() => {
                                   if (item.path) {
@@ -1224,6 +1470,26 @@ export default function GameReview() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+      <Dialog
+  open={isAnalyzing}
+  aria-labelledby="analyzing-dialog-title"
+  disableEscapeKeyDown
+  disableAutoFocus // Prevent dialog from grabbing focus
+  disableRestoreFocus // Prevent restoring focus to the button after close
+  sx={{ "& .MuiDialog-paper": { width: "300px" } }}
+>
+  <DialogTitle id="analyzing-dialog-title">Analyzing Game</DialogTitle>
+  <DialogContent>
+    <LinearProgress
+      variant="determinate"
+      value={analysisProgress}
+      sx={{ mt: 2, mb: 2 }}
+    />
+    <Typography variant="body2" color="textSecondary">
+      Progress: {Math.round(analysisProgress)}% - Analyzing moves...
+    </Typography>
+  </DialogContent>
+</Dialog>
     </>
   );
 }
