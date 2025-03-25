@@ -23,7 +23,7 @@ export function useStockfish(chess, currentPath) {
         if (depthIndex !== -1) {
           const depthValue = parseInt(parts[depthIndex + 1], 10);
           setDepth(depthValue); // Set the depth
-          console.log("Depth set to:", depthValue);
+        //   console.log("Depth set to:", depthValue);
         }
         
         const scoreIndex = parts.indexOf("score");

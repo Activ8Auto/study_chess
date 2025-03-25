@@ -1,16 +1,9 @@
 import React from "react";
-import { Box, Typography } from "@mui/material";
-import { Chess } from "chess.js";
+import { Box, Typography, Paper } from "@mui/material";
 
-const getMoveSequence = (path) =>
-  path.slice(1).map((node) => node.move).join(" ");
+const getMoveSequence = (path) => path.slice(1).map((node) => node.move).join(" ");
 
-export default function MoveList({
-  moveList,
-  currentPath,
-  setCurrentPath,
-  mistakeSequences,
-}) {
+export default function MoveList({ moveList, currentPath, setCurrentPath, mistakeSequences, goToMove, setPath }) {
   const currentNode = currentPath[currentPath.length - 1];
 
   const renderMoves = () => {
@@ -23,45 +16,29 @@ export default function MoveList({
       const isBlackVariationMove = /^\d+\.\.\.\s/.test(item.text);
 
       const pushMoveBox = () => {
-        const isCurrentMove =
-          item.path &&
-          item.path.length > 0 &&
-          currentNode &&
-          item.path[item.path.length - 1] === currentNode;
-        const isMistake =
-          item.path &&
-          mistakeSequences.includes(getMoveSequence(item.path));
-
+        const isCurrentMove = item.path && item.path[item.path.length - 1] === currentNode;
+        const isMistake = item.path && mistakeSequences.includes(getMoveSequence(item.path));
+  
         return (
           <Box
-            key={`mv-${index}`}
+            key={`move-${index}`}
             component="span"
             sx={{
               ml: `${currentVariationDepth * 20}px`,
               cursor: item.path ? "pointer" : "default",
-              backgroundColor: isCurrentMove ? "#e0f7fa" : "transparent",
-              p: "2px 4px",
-              mr: 1,
-              borderRadius: "4px",
-              color: isMistake ? "red" : "inherit",
+              bgcolor: isCurrentMove ? "#b2ebf2" : "transparent",
+              p: "2px 6px",
+              borderRadius: 1,
+              color: isMistake ? "error.main" : "inherit",
+              "&:hover": item.path ? { bgcolor: "grey.200" } : {},
             }}
-            onClick={() => {
-              if (item.path) {
-                setCurrentPath(item.path);
-              }
-            }}
+            onClick={() => item.path && setPath(item.path)} // Change this line
+            role={item.path ? "button" : undefined}
+            aria-label={item.path ? `Go to move ${item.text}` : undefined}
           >
             {item.text}
             {item.annotation && (
-              <Box
-                component="span"
-                sx={{
-                  fontWeight: "bold",
-                  fontStyle: "italic",
-                  color: "#555",
-                }}
-              >
-                {" "}
+              <Box component="span" sx={{ fontStyle: "italic", color: "text.secondary", ml: 1 }}>
                 {item.annotation}
               </Box>
             )}
@@ -70,26 +47,14 @@ export default function MoveList({
       };
 
       if (item.isVariationStart) {
-        if (currentLine.length > 0) {
-          lines.push(
-            <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
-              {currentLine}
-            </Box>
-          );
+        if (currentLine.length) {
+          lines.push(<Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>{currentLine}</Box>);
           currentLine = [];
         }
         currentVariationDepth = item.variationDepth + 1;
-        currentLine.push(
-          <Box key={`var-start-${index}`} component="span">
-            (
-          </Box>
-        );
+        currentLine.push(<Box key={`var-start-${index}`} component="span">(</Box>);
       } else if (item.isVariationEnd) {
-        currentLine.push(
-          <Box key={`var-end-${index}`} component="span">
-            )
-          </Box>
-        );
+        currentLine.push(<Box key={`var-end-${index}`} component="span">)</Box>);
         lines.push(
           <Box
             key={`line-${lines.length}`}
@@ -101,15 +66,11 @@ export default function MoveList({
         currentLine = [];
         currentVariationDepth = item.variationDepth;
       } else if (item.isResult) {
-        if (currentLine.length > 0) {
-          lines.push(
-            <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
-              {currentLine}
-            </Box>
-          );
+        if (currentLine.length) {
+          lines.push(<Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>{currentLine}</Box>);
         }
         lines.push(
-          <Box key={`result-${index}`} sx={{ mt: 2, fontWeight: "bold" }}>
+          <Box key={`result-${index}`} sx={{ mt: 1, fontWeight: "bold" }}>
             {item.text}
           </Box>
         );
@@ -117,44 +78,41 @@ export default function MoveList({
       } else {
         currentLine.push(pushMoveBox());
         if ((!isWhiteMove && !item.isVariation) || isBlackVariationMove) {
-          lines.push(
-            <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
-              {currentLine}
-            </Box>
-          );
+          lines.push(<Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>{currentLine}</Box>);
           currentLine = [];
         }
       }
     });
 
-    if (currentLine.length > 0) {
-      lines.push(
-        <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
-          {currentLine}
-        </Box>
-      );
+    if (currentLine.length) {
+      lines.push(<Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>{currentLine}</Box>);
     }
 
     return lines;
   };
 
   return (
-    <Box>
-      <Typography variant="h6">Move List</Typography>
-      <Box
+    <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <Typography variant="h6" gutterBottom>Move List</Typography>
+      <Paper
         sx={{
           flexGrow: 1,
           overflowY: "auto",
-          border: "1px solid #e0e0e0",
           p: 2,
+          mt: 1,
+          borderRadius: "8px",
+          backgroundColor: "#f5f5f5",
+          boxShadow: "inset 0px 2px 4px rgba(0, 0, 0, 0.1)",
         }}
       >
-        {moveList.length > 0 ? (
+        {moveList.length ? (
           renderMoves()
         ) : (
-          <Typography variant="body2">No moves yet</Typography>
+          <Typography variant="body2" color="text.secondary">
+            No moves yet
+          </Typography>
         )}
-      </Box>
+      </Paper>
     </Box>
   );
 }

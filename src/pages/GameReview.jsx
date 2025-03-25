@@ -18,36 +18,26 @@ import MoveList from "../components/MoveList";
 import ChessBoardArea from "../components/ChessBoardArea";
 import useChessStore from "../store";
 import IconButton from "@mui/material/IconButton";
-import pgnParser from "pgn-parser";
 import {savePGNWithAnnotations, generateFullPGN} from "../utils/savePGN"
-import { useRef } from "react";
-import Menu from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
-import SettingsIcon from "@mui/icons-material/Settings";
-import Select from "@mui/material/Select";
-import FormControl from "@mui/material/FormControl";
+
 import Dialog from "@mui/material/Dialog";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import LinearProgress from "@mui/material/LinearProgress";
-import { parsePGN } from "../utils/parsePGN";
-import InputLabel from "@mui/material/InputLabel";
 import {
   Card,
   CardContent,
+  Paper,
   Typography,
+  FormControlLabel,
+  Checkbox,
   Button,
   Grid,
   Box,
-  Snackbar,
-  Alert,
   Popover,
   TextField,
   InputAdornment,
 } from "@mui/material";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
-import ShareIcon from "@mui/icons-material/Share";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 
 export default function GameReview() {
@@ -55,7 +45,6 @@ export default function GameReview() {
   const navigate = useNavigate();
   const {
     notes,
-    fetchNotes,
     selectedPGN,
     deleteNote,
     analysisResults,
@@ -92,8 +81,9 @@ export default function GameReview() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState(0);
   const [mistakeSequences, setMistakeSequences] = useState([]);
+  const [pinnedMove, setPinnedMove] = useState(null);
   const [mistakeThreshold, setMistakeThreshold] = useState(0.3);
-  const [analysisDepth, setAnalysisDepth] = useState(15);
+  const [analysisDepth, setAnalysisDepth] = useState(18);
   const [settingsAnchorEl, setSettingsAnchorEl] = useState(null);
   const [moveErrors, setMoveErrors] = useState([]);
   const [effectiveGameId, setEffectiveGameId] = useState(null);
@@ -107,8 +97,29 @@ export default function GameReview() {
     severity: "success",
   });
   const [anchorEl, setAnchorEl] = useState(null);
+  const getNodeByMovePath = (node, movePath) => {
+    let current = node;
+    for (const move of movePath) {
+      const child = current.children.find((c) => c.move === move);
+      if (!child) return null;
+      current = child;
+    }
+    return current;
+  };
+
+  const handleSetPath = (newPath) => {
+    if (newPath.length === 0) return;
+    const lastNode = newPath[newPath.length - 1];
+    const newChess = new Chess(lastNode.fen);
+    setChess(newChess);
+    setCurrentPath(newPath);
+    setFen(lastNode.fen);
+    setEngineEval(null);
+    setTopLine("");
+  };
 
   const handleGoToMove = (index) => {
+    console.log("handleGoToMove called with index:", index, "currentPath:", currentPath);
     goToMove(
       index,
       currentPath,
@@ -121,12 +132,25 @@ export default function GameReview() {
   };
   
 
-  const handleAnnotationChange = (value) => {
+  const annotationValue = pinnedMove
+  ? getNodeByMovePath(moveTree, pinnedMove.path)?.annotation || ""
+  : currentPath[currentPath.length - 1]?.annotation || "";
+
+const handleAnnotationChange = (value) => {
+  if (pinnedMove) {
+    setMoveTree((prev) => {
+      const newTree = JSON.parse(JSON.stringify(prev));
+      const node = getNodeByMovePath(newTree, pinnedMove.path);
+      if (node) {
+        node.annotation = value;
+      }
+      return newTree;
+    });
+  } else {
     if (currentPath.length === 0) return;
     const updatedPath = [...currentPath];
     updatedPath[updatedPath.length - 1].annotation = value;
     setCurrentPath(updatedPath);
-
     setMoveTree((prev) => {
       const newTree = JSON.parse(JSON.stringify(prev));
       const walkNodePath = (rootNode, pathIndex) => {
@@ -146,7 +170,8 @@ export default function GameReview() {
       walkNodePath(newTree, 0);
       return newTree;
     });
-  };
+  }
+};
 
   const handleBack = () => navigate("/");
 
@@ -165,6 +190,7 @@ export default function GameReview() {
       }
     }
   };
+ 
 
   
     
@@ -356,24 +382,60 @@ export default function GameReview() {
       <Grid item xs={12} md={6}>
         <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
           <CardContent sx={{ flexGrow: 1 }}>
-            <Typography variant="h6">
-              Annotation
-            </Typography>
-            <textarea
-              value={currentPath[currentPath.length - 1]?.annotation || ""}
-              onChange={(e) => handleAnnotationChange(e.target.value)}
-              placeholder="Annotation Here..."
-              style={{
-                width: "100%",
-                height: "120px",
-                marginTop: "8px",
-                padding: "8px",
-                fontSize: "14px",
-                borderRadius: "4px",
-                border: "1px solid #e0e0e0",
-                resize: "none",
-              }}
-            />
+          <Typography variant="h6">Annotation</Typography>
+<Paper
+  elevation={0}
+  sx={{
+    backgroundColor: "#f5f5f5",
+    borderRadius: "8px",
+    boxShadow: "inset 0px 2px 4px rgba(0, 0, 0, 0.1)",
+    mt: 1,
+    p: 1,
+  }}
+>
+<textarea
+  value={annotationValue}
+  onChange={(e) => handleAnnotationChange(e.target.value)}
+  placeholder="Annotation here..."
+  style={{
+    width: "100%",
+    height: "120px",
+    padding: "8px",
+    fontSize: "14px",
+    borderRadius: "4px",
+    border: "1px solid #e0e0e0",
+    resize: "none",
+    backgroundColor: "transparent",
+  }}
+/>
+{pinnedMove && (
+  <Typography variant="body2" sx={{ mt: 1 }}>
+    Annotating: {pinnedMove.san}
+  </Typography>
+)}
+</Paper>
+<FormControlLabel
+    control={
+      <Checkbox
+        checked={!!pinnedMove}
+        onChange={() => {
+          if (pinnedMove) {
+            setPinnedMove(null);
+          } else {
+            const currentNode = currentPath[currentPath.length - 1];
+            setPinnedMove({
+              path: currentPath.map((node) => node.move).filter(Boolean),
+              san: currentNode.san,
+            });
+          }
+        }}
+      />
+    }
+    label="Pin Annotation"
+    sx={{ mt: 1 }}
+  />
+
+
             <Button
   variant="contained"
   onClick={async () => {
@@ -407,11 +469,13 @@ export default function GameReview() {
             <Card sx={{ mt: 2, height: "100%" }}>
               <CardContent sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
                
-                <MoveList
+              <MoveList
   moveList={moveList}
   currentPath={currentPath}
   setCurrentPath={setCurrentPath}
   mistakeSequences={mistakeSequences}
+  goToMove={handleGoToMove} // Keep this for other uses
+  setPath={handleSetPath}  // Add this
 />
               </CardContent>
             </Card>

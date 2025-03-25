@@ -1,24 +1,18 @@
-import { useState } from "react";
 import { Chessboard } from "react-chessboard";
 import { Chess } from "chess.js";
 import {
-  Card,
   CardContent,
   Typography,
   IconButton,
-  Menu,
-  Grid,
-  MenuItem,
-  FormControl,
-  Select,
-  InputLabel,
   Box,
   Button,
+  Paper,
 } from "@mui/material";
 import ShareIcon from "@mui/icons-material/Share";
 import SettingsIcon from "@mui/icons-material/Settings";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import SettingsMenu from "./SettingsMenu"; // Import the new component
 
 export default function ChessBoardArea({
   fen,
@@ -46,8 +40,6 @@ export default function ChessBoardArea({
   topLine,
   depth,
 }) {
-  const openSettings = Boolean(settingsAnchorEl);
-
   return (
     <CardContent>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -59,37 +51,92 @@ export default function ChessBoardArea({
           </IconButton>
           <IconButton
             onClick={(e) => setSettingsAnchorEl(e.currentTarget)}
-            aria-controls={openSettings ? "settings-menu" : undefined}
+            aria-controls={settingsAnchorEl ? "settings-menu" : undefined}
           >
             <SettingsIcon />
           </IconButton>
-          <Menu
-            id="settings-menu"
-            anchorEl={settingsAnchorEl}
-            open={openSettings}
-            onClose={() => setSettingsAnchorEl(null)}
-          >
-            <MenuItem sx={{ flexDirection: "column", gap: 2, p: 2 }}>
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Mistake Threshold</InputLabel>
-                <Select value={mistakeThreshold} onChange={(e) => setMistakeThreshold(e.target.value)}>
-                  {[0.1, 0.2, 0.3, 0.4, 0.5, 0.6].map((value) => (
-                    <MenuItem key={value} value={value}>{value}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <FormControl fullWidth>
-                <InputLabel>Analysis Depth</InputLabel>
-                <Select value={analysisDepth} onChange={(e) => setAnalysisDepth(e.target.value)}>
-                  {[14, 15, 16, 17, 18, 19, 20].map((value) => (
-                    <MenuItem key={value} value={value}>{value}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </MenuItem>
-          </Menu>
+          <SettingsMenu
+            settingsAnchorEl={settingsAnchorEl}
+            setSettingsAnchorEl={setSettingsAnchorEl}
+            mistakeThreshold={mistakeThreshold}
+            setMistakeThreshold={setMistakeThreshold}
+            analysisDepth={analysisDepth}
+            setAnalysisDepth={setAnalysisDepth}
+          />
         </Box>
       </Box>
+      <Paper
+        sx={{
+          mt: 2,
+          backgroundColor: "#f5f5f5", // Light gray background for contrast
+          borderRadius: "8px",        // Rounded corners
+          padding: "12px",            // Inner padding for inset feel
+          boxShadow: "inset 0px 2px 4px rgba(0, 0, 0, 0.1)", // Inset shadow
+        }}
+      >
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Typography
+            variant="body1"
+            sx={{
+              color: "#333", // Darker text for readability
+              fontWeight: 500, // Slightly bolder for emphasis
+            }}
+          >
+            <strong>Evaluation:</strong> {engineEval || "N/A"}
+          </Typography>
+          <Typography
+            variant="body1"
+            sx={{
+              color: "#333",
+              fontWeight: 500,
+            }}
+          >
+            <strong>Depth:</strong> {depth || "N/A"}
+          </Typography>
+        </Box>
+        <Typography
+  variant="body1"
+  align="center"
+  sx={{
+    mt: 1,
+  color: "#333",
+  fontWeight: 500,
+  whiteSpace: "nowrap",      // Keep on one line
+  overflow: "auto",        // Hide excess text
+  textOverflow: "ellipsis",  // Add ellipsis
+  maxWidth: "100%",
+  }}
+>
+  {topLine
+    ? topLine.split(" ").map((token, idx) => {
+        if (/^\d+\.$/.test(token)) {
+          // It's a move number like "17."
+          return (
+            <span
+              key={idx}
+              style={{
+                marginRight: "4px",
+                color: "#222",
+                fontWeight: 600 ,       // Scroll horizontally if still too long
+             
+              }}
+            >
+              {token}
+            </span>
+          );
+        }
+        return (
+          <span key={idx} style={{ marginRight: "4px" }}>
+            {token}
+          </span>
+        );
+      })
+    : "N/A"}
+</Typography>
+
+
+      </Paper>
+      <br></br>
 
       <Typography variant="body2" align="center" sx={{ mb: 1 }}>
         {boardOrientation === "white" ? blackPlayer : whitePlayer}
@@ -103,19 +150,78 @@ export default function ChessBoardArea({
         {boardOrientation === "white" && whiteElo ? ` (${whiteElo})` : blackElo ? ` (${blackElo})` : ""}
       </Typography>
 
-      <Box sx={{ mt: 2 }}>
+      {/* Replace the Box with Paper for the evaluation section */}
+      {/* <Paper
+        sx={{
+          mt: 2,
+          backgroundColor: "#f5f5f5", // Light gray background for contrast
+          borderRadius: "8px",        // Rounded corners
+          padding: "12px",            // Inner padding for inset feel
+          boxShadow: "inset 0px 2px 4px rgba(0, 0, 0, 0.1)", // Inset shadow
+        }}
+      >
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Typography variant="body1">
-          <strong>Evaluation:</strong> {engineEval || "N/A"}
+          <Typography
+            variant="body1"
+            sx={{
+              color: "#333", // Darker text for readability
+              fontWeight: 500, // Slightly bolder for emphasis
+            }}
+          >
+            <strong>Evaluation:</strong> {engineEval || "N/A"}
           </Typography>
-          <Typography variant="body1">
-          <strong>Depth:</strong> {depth || "N/A"}
+          <Typography
+            variant="body1"
+            sx={{
+              color: "#333",
+              fontWeight: 500,
+            }}
+          >
+            <strong>Depth:</strong> {depth || "N/A"}
           </Typography>
         </Box>
-        <Typography variant="body1" align="center" sx={{ mt: 1 }}>
-          {topLine || "N/A"}
-        </Typography>
-      </Box>
+        <Typography
+  variant="body1"
+  align="center"
+  sx={{
+    mt: 1,
+  color: "#333",
+  fontWeight: 500,
+  whiteSpace: "nowrap",      // Keep on one line
+  overflow: "auto",        // Hide excess text
+  textOverflow: "ellipsis",  // Add ellipsis
+  maxWidth: "100%",
+  }}
+>
+  {topLine
+    ? topLine.split(" ").map((token, idx) => {
+        if (/^\d+\.$/.test(token)) {
+          // It's a move number like "17."
+          return (
+            <span
+              key={idx}
+              style={{
+                marginRight: "4px",
+                color: "#222",
+                fontWeight: 600 ,       // Scroll horizontally if still too long
+             
+              }}
+            >
+              {token}
+            </span>
+          );
+        }
+        return (
+          <span key={idx} style={{ marginRight: "4px" }}>
+            {token}
+          </span>
+        );
+      })
+    : "N/A"}
+</Typography>
+
+
+      </Paper> */}
 
       <Box sx={{ display: "flex", justifyContent: "space-between", mt: 2 }}>
         <Button

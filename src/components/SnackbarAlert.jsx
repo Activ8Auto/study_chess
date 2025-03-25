@@ -18,6 +18,8 @@ export default function SnackbarAlert({ snackbar, setSnackbar }) {
         onClose={handleClose}
         severity={snackbar.severity}
         variant="filled"
+        sx={{ width: "100%" }}
+        aria-live="polite"
       >
         {snackbar.message}
       </Alert>

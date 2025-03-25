@@ -3,11 +3,12 @@ import { Chess } from "chess.js";
 
 // Analyze a position using Stockfish safely
 export const analyzePositionSafely = (stockfish, chess, setEngineEval, setTopLine) => {
+  
   if (stockfish && !stockfish.isAnalyzing) {
     stockfish.isAnalyzing = true;
     stockfish.postMessage("stop");
     stockfish.postMessage(`position fen ${chess.fen()}`);
-    stockfish.postMessage("go depth 20");
+    stockfish.postMessage("go depth 22");
 
     // Optional: handle responses in parent (GameReview)
   }
@@ -15,7 +16,9 @@ export const analyzePositionSafely = (stockfish, chess, setEngineEval, setTopLin
 
 // Go to a specific move in the move path
 export const goToMove = (pathIndex, currentPath, setCurrentPath, setFen, setChess, setEngineEval, setTopLine) => {
+  
   if (pathIndex < 0 || pathIndex >= currentPath.length) return;
+ 
   const targetNode = currentPath[pathIndex];
   const newChess = new Chess(targetNode.fen);
   setChess(newChess);
