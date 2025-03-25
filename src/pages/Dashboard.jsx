@@ -14,7 +14,7 @@ import {
 function Dashboard() {
   const { fetchNotes, notes, setSelectedPGN, deleteNote } = useChessStore(); // Added deleteNote
   const [games, setGames] = useState([]);
-  const [view, setView] = useState("notes"); // Default to notes
+  const [view, setView] = useState("games"); // Default to notes
   const [loading, setLoading] = useState(false);
   const [year, setYear] = useState(new Date().getFullYear().toString());
   const [month, setMonth] = useState(

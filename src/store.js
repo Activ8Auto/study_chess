@@ -110,20 +110,13 @@ const useChessStore = create(
         }
       },
       setSelectedPGN: (pgn) => set({ selectedPGN: pgn }),
-      setAnalysisResults: (noteId, moveErrors, mistakeNodes) =>
-        set((state) => ({
-          analysisResults: {
-            ...state.analysisResults,
-            [noteId]: { moveErrors, mistakeNodes },
-          },
-        })),
-      clearAnalysisResults: (noteId) =>
-        set((state) => ({
-          analysisResults: {
-            ...state.analysisResults,
-            [noteId]: undefined,
-          },
-        })),
+      setAnalysisResults: (noteId, moveErrors, mistakeSequences) =>
+      set((state) => ({
+        analysisResults: {
+          ...state.analysisResults,
+          [noteId]: { moveErrors, mistakeSequences },
+        },
+      })),
     }),
     {
       name: "chess-store",
@@ -134,6 +127,7 @@ const useChessStore = create(
         fen: state.fen,
         analysisResults: state.analysisResults, // Persist analysis results
       }),
+      
     }
   )
 );
