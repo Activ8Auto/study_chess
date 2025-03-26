@@ -21,7 +21,9 @@ export function generateFullPGN(
       : `${mainChild.move} `;
 
     if (mainChild.annotation) {
-      pgn += `{${mainChild.annotation}} `;
+      // Replace newlines with spaces in the annotation
+      const sanitizedAnnotation = mainChild.annotation.replace(/\n/g, " ");
+      pgn += `{${sanitizedAnnotation}} `;
     }
 
     for (let i = 1; i < node.children.length; i++) {
@@ -32,7 +34,9 @@ export function generateFullPGN(
         : `${moveNumber}... ${variationNode.move} `;
 
       if (variationNode.annotation) {
-        pgn += `{${variationNode.annotation}} `;
+        // Replace newlines with spaces in variation annotation
+        const sanitizedVariationAnnotation = variationNode.annotation.replace(/\n/g, " ");
+        pgn += `{${sanitizedVariationAnnotation}} `;
       }
 
       if (variationNode.children.length > 0) {
