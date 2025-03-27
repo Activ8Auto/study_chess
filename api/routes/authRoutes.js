@@ -53,6 +53,7 @@ router.post('/login', async (req, res) => {
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
     console.log("Login successful:", new Date());
     res.json({ token, chesscomUsername: user.chesscom_username });
+  
   } catch (error) {
     console.error('Error logging in:', error);
     res.status(500).json({ error: 'Error logging in' });
