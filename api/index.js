@@ -7,6 +7,9 @@ const pool = require("./db"); // Import the pool
 const app = express();
 app.use(express.json());
 
+// Disable automatic timeout
+app.set('timeout', 0);
+
 // Middleware to verify JWT
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
