@@ -9,7 +9,7 @@ export function useStockfish(chess, currentPath) {
 
   useEffect(() => {
     const stockfishWorker = new Worker("/stockfish-17-single.js");
-    let isStockfishReady = false;
+    // let isStockfishReady = false;
 
     stockfishWorker.onmessage = (event) => {
       const message = event.data;

@@ -1,13 +1,11 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useStockfish } from "../hooks/useStockfish";
 import { loadPGNData } from "../utils/loadPGNData";
 import { Chess } from "chess.js";
-import { Chessboard } from "react-chessboard";
 import {useChessGame, STARTING_FEN} from "../hooks/useChessGame"
 import { analyzeGame } from "../utils/analyzeGame";
 import SnackbarAlert from "../components/SnackbarAlert";
-import { buildMoveList, generatePGN, getMoveSequence } from "../utils/moveUtils";
 import { setupKeyboardNavigation } from "../utils/keyboardNavigation";
 import {
   analyzePositionSafely,
@@ -236,7 +234,7 @@ const handleAnnotationChange = (value) => {
       }
     );
   };
-
+// eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const cleanup = setupKeyboardNavigation({
       currentPath,
@@ -251,7 +249,7 @@ const handleAnnotationChange = (value) => {
     return cleanup;
   }, [currentPath]);
   
-
+// eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     loadPGNData({
       selectedPGN,
@@ -267,7 +265,7 @@ const handleAnnotationChange = (value) => {
       setFinalResult,
     });
   }, [selectedPGN]);
-
+// eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!gameId || !notes.length) return;
   
@@ -285,13 +283,13 @@ const handleAnnotationChange = (value) => {
     }
   }, [gameId, notes, analysisResults]);
   
-
+// eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     // console.log("Player state updated:", { whitePlayer, blackPlayer, whiteElo, blackElo });
   }, [whitePlayer, blackPlayer, whiteElo, blackElo]);
 
 
-
+// eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     // console.log("GameReview topLine:", topLine); // Log here
     if (stockfish) {
