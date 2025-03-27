@@ -43,8 +43,11 @@ router.post('/login', async (req, res) => {
   const { username, password } = req.body;
   const client = createDbClient();
   try {
+    console.log("Starting login attempt:", new Date());
     await client.connect();
+    console.log("Connected to DB:", new Date());
     const result = await client.query('SELECT * FROM users WHERE username = $1', [username]);
+    console.log("Query completed:", new Date());
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -54,15 +57,16 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    console.log("Login successful:", new Date());
     res.json({ token, chesscomUsername: user.chesscom_username });
   } catch (error) {
     console.error('Error logging in:', error);
     res.status(500).json({ error: 'Error logging in' });
   } finally {
-    await client.end(); // Ensure the client is closed
+    await client.end();
+    console.log("Client closed:", new Date());
   }
 });
-
 // Update Password
 router.put('/update-password', verifyToken, async (req, res) => {
   const { newPassword } = req.body;
