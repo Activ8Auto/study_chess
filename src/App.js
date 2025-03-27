@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import Dashboard from "./pages/Dashboard";
 import GameReview from "./pages/GameReview";
 import Login from "./pages/Login";
+import Settings from "./pages/Settings"; // Import the new Settings page
 import { CssBaseline, Container } from "@mui/material";
 import TopBar from "./global/TopBar";
 import useChessStore from "./store";
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/game/:gameId" element={<ProtectedRoute><GameReview /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} /> {/* New Settings route */}
         </Routes>
       </Container>
     </Router>

@@ -18,7 +18,7 @@ export default function MoveList({ moveList, currentPath, setCurrentPath, mistak
       const pushMoveBox = () => {
         const isCurrentMove = item.path && item.path[item.path.length - 1] === currentNode;
         const isMistake = item.path && mistakeSequences.includes(getMoveSequence(item.path));
-  
+
         return (
           <Box
             key={`move-${index}`}
@@ -32,7 +32,7 @@ export default function MoveList({ moveList, currentPath, setCurrentPath, mistak
               color: isMistake ? "error.main" : "inherit",
               "&:hover": item.path ? { bgcolor: "grey.200" } : {},
             }}
-            onClick={() => item.path && setPath(item.path)} // Change this line
+            onClick={() => item.path && setPath(item.path)}
             role={item.path ? "button" : undefined}
             aria-label={item.path ? `Go to move ${item.text}` : undefined}
           >
@@ -92,11 +92,14 @@ export default function MoveList({ moveList, currentPath, setCurrentPath, mistak
   };
 
   return (
-    <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <Typography variant="h6" gutterBottom>Move List</Typography>
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <Typography variant="h6" gutterBottom>
+        Move List
+      </Typography>
       <Paper
         sx={{
           flexGrow: 1,
+          maxHeight: "400px", // Set a reasonable max height, adjustable
           overflowY: "auto",
           p: 2,
           mt: 1,
