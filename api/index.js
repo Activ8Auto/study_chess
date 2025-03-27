@@ -3,7 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const jwt = require("jsonwebtoken");
-const pool = require("./db");
+const createDbClient = require("./db"); // Updated to import createDbClient
 const chessRoutes = require("./routes/chessRoutes");
 const authRoutes = require("./routes/authRoutes");
 
@@ -23,8 +23,6 @@ const verifyToken = (req, res, next) => {
     next();
   });
 };
-
-
 
 // Routes
 app.use("/chess", chessRoutes); // Now /api/chess on Vercel
@@ -46,52 +44,72 @@ app.get("/notes", verifyToken, async (req, res) => {
 });
 
 app.get("/notes/:id", verifyToken, async (req, res) => {
+  const client = createDbClient();
   try {
+    await client.connect();
     const { id } = req.params;
-    const result = await pool.query("SELECT * FROM notes_2 WHERE id = $1", [id]);
+    const result = await client.query("SELECT * FROM notes_2 WHERE id = $1", [id]);
     if (result.rows.length === 0) return res.status(404).json({ error: "Note not found" });
     res.json(result.rows[0]);
   } catch (err) {
+    console.error("DB error:", err);
     res.status(500).json({ error: "Error retrieving note" });
+  } finally {
+    await client.end();
   }
 });
 
 app.post("/notes", verifyToken, async (req, res) => {
+  const client = createDbClient();
   try {
+    await client.connect();
     const { title, pgn } = req.body;
-    const result = await pool.query(
+    const result = await client.query(
       "INSERT INTO notes_2 (title, pgn, created_at, last_modified) VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) RETURNING *",
       [title || "New Game Note", pgn || ""]
     );
     res.json(result.rows[0]);
   } catch (err) {
+    console.error("DB error:", err);
     res.status(500).json({ error: "Error adding note" });
+  } finally {
+    await client.end();
   }
 });
 
 app.put("/notes/:id", verifyToken, async (req, res) => {
+  const client = createDbClient();
   try {
+    await client.connect();
     const { id } = req.params;
     const { title, pgn } = req.body;
-    const result = await pool.query(
+    const result = await client.query(
       "UPDATE notes_2 SET title = $1, pgn = $2, last_modified = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *",
       [title || "New Game Note", pgn || "", id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Note not found" });
     res.json(result.rows[0]);
   } catch (err) {
+    console.error("DB error:", err);
     res.status(500).json({ error: "Error updating note" });
+  } finally {
+    await client.end();
   }
 });
 
 app.delete("/notes/:id", verifyToken, async (req, res) => {
+  const client = createDbClient();
   try {
+    await client.connect();
     const { id } = req.params;
-    const result = await pool.query("DELETE FROM notes_2 WHERE id = $1 RETURNING id", [id]);
+    const result = await client.query("DELETE FROM notes_2 WHERE id = $1 RETURNING id", [id]);
     if (result.rows.length === 0) return res.status(404).json({ error: "Note not found" });
     res.status(204).send();
   } catch (err) {
+    console.error("DB error:", err);
     res.status(500).json({ error: "Error deleting note" });
+  } finally {
+    await client.end();
   }
 });
 
