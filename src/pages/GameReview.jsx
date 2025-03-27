@@ -335,20 +335,32 @@ const handleAnnotationChange = (value) => {
   return (
     <>
     
-   <Grid container spacing={4}>
-   <Grid
+    <Grid container spacing={4} sx={{ 
+   height: '100vh',  // Full viewport height
+   width: '100%',    // Ensure full width
+   margin: 0,        // Remove default margins
+   padding: 0,       // Remove default padding
+   overflow: 'hidden' // Prevent overall page scrolling
+}}>
+  <Grid
     item
     xs={12}
     md={6}
     sx={{
-      position: { md: "sticky" },
-      top: "16px",
-      maxHeight: { md: "100 vh" }, // Cap at 80% of viewport height
-      maxWidth: { md: "50%" },  // Ensure it doesn’t exceed half the screen
-      overflowY: "auto",
+      height: '100%',
+      width: '47%',
+      maxHeight: '100%',
+      padding: '0 !important', // Override default padding
+      overflow: 'hidden'
     }}
   >
-    <Card sx={{ height: "100%", width: "100%", maxWidth: "100%" }}>
+    <Card sx={{ 
+      height: '100%', 
+      width: '100%', 
+      display: 'flex', 
+      flexDirection: 'column',
+      overflow: 'hidden' 
+    }}>
       <ChessBoardArea
         fen={fen}
         boardOrientation={boardOrientation}
@@ -383,13 +395,28 @@ const handleAnnotationChange = (value) => {
     xs={12}
     md={6}
     sx={{
-      maxHeight: { md: "100vh" },
-      overflowY: "auto",
-      maxWidth: { md: "100%" }, // Ensure it respects its column width
+      height: '100%', 
+      maxHeight: '100%',
+      width: '50%', 
+      maxWidth: '50%',
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column'
     }}
   >
-    <Card sx={{ height: "100%", display: "flex", flexDirection: "column",  maxWidth: "100%", }}>
-      <CardContent sx={{ flexGrow: 1 }}>
+    <Card sx={{ 
+      height: '100%', 
+      width: '100%', 
+      display: 'flex', 
+      flexDirection: 'column',
+      overflow: 'hidden' 
+    }}>
+      <CardContent sx={{ 
+        flexGrow: 1, 
+        display: 'flex', 
+        flexDirection: 'column',
+        overflow: 'hidden' 
+      }}>
         {/* ... Annotation and MoveList ... */}
         <Typography variant="h6">Annotation</Typography>
         <Paper
@@ -498,6 +525,12 @@ const handleAnnotationChange = (value) => {
       boxSizing: "border-box", // Include padding in width/height
     }}
   >
+    <Box sx={{ 
+          flexGrow: 1, 
+          display: 'flex', 
+          flexDirection: 'column',
+          overflow: 'hidden' 
+        }}>
             <MoveList
               moveList={moveList}
               currentPath={currentPath}
@@ -506,6 +539,7 @@ const handleAnnotationChange = (value) => {
               goToMove={handleGoToMove}
               setPath={handleSetPath}
             />
+            </Box>
           </CardContent>
         </Card>
       </CardContent>
