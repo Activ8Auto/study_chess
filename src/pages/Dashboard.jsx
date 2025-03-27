@@ -29,7 +29,7 @@ function Dashboard() {
 const [year, setYear] = useState(new Date().getFullYear().toString());
 const [month, setMonth] = useState(String(new Date().getMonth() + 1).padStart(2, "0"));
 
-
+console.log("Username in store:", chesscomUsername);
 const user = chesscomUsername
 console.log(user)
 
