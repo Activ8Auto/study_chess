@@ -3,6 +3,7 @@ const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const db = require("./db");
+const notesRoutes = require("./routes/notesRoutes");
 
 const authRoutes = require("./routes/authRoutes");
 const chessRoutes = require("./routes/chessRoutes"); // ✅ ADD THIS
@@ -30,6 +31,7 @@ app.use(express.json());
 // ✅ MOUNT YOUR ROUTES
 app.use("/auth", authRoutes);     // Handles /auth/register, /auth/login, etc.
 app.use("/chess", chessRoutes);   // Handles /chess/games/:username/:year/:month
+app.use("/notes", notesRoutes);
 
 // Optional: fallback test route
 app.get("/", (req, res) => {
