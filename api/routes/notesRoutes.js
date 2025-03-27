@@ -1,26 +1,24 @@
 const express = require("express");
+const jwt = require("jsonwebtoken");
 const router = express.Router();
 const db = require("../db");
 
-// Middleware to verify token (reuse if you have it elsewhere)
-const jwt = require("jsonwebtoken");
-function authenticateToken(req, res, next) {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1];
+// ✅ Token middleware - accepts raw token (no "Bearer" expected)
+const verifyToken = (req, res, next) => {
+  const token = req.headers["authorization"];
+  if (!token) return res.status(401).json({ error: "No token provided" });
 
-  if (!token) return res.sendStatus(401);
-
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) return res.sendStatus(403);
-    req.user = user;
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) return res.status(403).json({ error: "Invalid token" });
+    req.userId = decoded.userId; // Use userId like in authRoutes
     next();
   });
-}
+};
 
 // GET /notes - Fetch notes for logged-in user
-router.get("/", authenticateToken, async (req, res) => {
+router.get("/", verifyToken, async (req, res) => {
   try {
-    const result = await db.query("SELECT * FROM notes WHERE user_id = $1", [req.user.id]);
+    const result = await db.query("SELECT * FROM notes WHERE user_id = $1", [req.userId]);
     res.json(result.rows);
   } catch (err) {
     console.error("Get notes error:", err.stack);
@@ -29,12 +27,12 @@ router.get("/", authenticateToken, async (req, res) => {
 });
 
 // POST /notes - Create new note
-router.post("/", authenticateToken, async (req, res) => {
+router.post("/", verifyToken, async (req, res) => {
   const { title, pgn } = req.body;
   try {
     const result = await db.query(
       "INSERT INTO notes (user_id, title, pgn) VALUES ($1, $2, $3) RETURNING *",
-      [req.user.id, title, pgn]
+      [req.userId, title, pgn]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -44,13 +42,13 @@ router.post("/", authenticateToken, async (req, res) => {
 });
 
 // PUT /notes/:id - Update a note
-router.put("/:id", authenticateToken, async (req, res) => {
+router.put("/:id", verifyToken, async (req, res) => {
   const { title, pgn } = req.body;
   const noteId = req.params.id;
   try {
     const result = await db.query(
       "UPDATE notes SET title = $1, pgn = $2 WHERE id = $3 AND user_id = $4 RETURNING *",
-      [title, pgn, noteId, req.user.id]
+      [title, pgn, noteId, req.userId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Note not found" });
     res.json(result.rows[0]);
@@ -61,12 +59,12 @@ router.put("/:id", authenticateToken, async (req, res) => {
 });
 
 // DELETE /notes/:id - Delete a note
-router.delete("/:id", authenticateToken, async (req, res) => {
+router.delete("/:id", verifyToken, async (req, res) => {
   const noteId = req.params.id;
   try {
     const result = await db.query(
       "DELETE FROM notes WHERE id = $1 AND user_id = $2 RETURNING *",
-      [noteId, req.user.id]
+      [noteId, req.userId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Note not found" });
     res.json({ message: "Note deleted" });
