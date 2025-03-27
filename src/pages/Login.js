@@ -66,6 +66,8 @@ const Login = () => {
         throw new Error(`Login failed: ${response.status} - ${text}`);
       }
       const data = await response.json();
+      console.log("Login response:", data);
+
       setToken(data.token);
       useChessStore.getState().setUserChesscomUsername(data.chesscomUsername);
       navigate("/");
@@ -74,7 +76,7 @@ const Login = () => {
       alert(error.message || "An error occurred during login");
     }
   };
-  
+
   // Registration submission
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
