@@ -14,7 +14,10 @@ app.use(
     credentials: true, // This allows cookies/authorization headers
   })
 );
-app.options("*", cors()); // Enable pre-flight for all routes
+app.options("*", cors({
+  origin: allowedOrigins,
+  credentials: true,
+}));
 
 app.use(express.json());
 // Authentication Middleware
