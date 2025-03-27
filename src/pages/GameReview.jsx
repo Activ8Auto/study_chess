@@ -414,6 +414,8 @@ const handleAnnotationChange = (value) => {
               border: "1px solid #e0e0e0",
               resize: "none",
               backgroundColor: "transparent",
+              whiteSpace: "pre-wrap",       // So text can wrap to next line
+    overflowWrap: "break-word", 
             }}
           />
           {pinnedMove && (
