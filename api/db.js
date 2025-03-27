@@ -1,33 +1,37 @@
 const { Pool } = require("pg");
 
-// Prevent multiple pool creations
-if (!global.pool) {
-  global.pool = new Pool({
+// Singleton pattern to ensure only one pool
+if (!global.postgresPoolInstance) {
+  global.postgresPoolInstance = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: {
       rejectUnauthorized: false
     },
-    max: 1, // Single connection
-    connectionTimeoutMillis: 20000, // 20 second timeout
-    idleTimeoutMillis: 10000 // Close idle quickly
+    max: 1,           // Strict limit to 1 connection
+    idleTimeoutMillis: 5000,   // Close idle connection quickly
+    connectionTimeoutMillis: 10000  // 10 second connection timeout
   });
 
-  // Optional: Basic error handling
-  global.pool.on('error', (err) => {
-    console.error('Unexpected database error', err);
+  // Log and handle any unexpected errors
+  global.postgresPoolInstance.on('error', (err) => {
+    console.error('Unexpected database pool error', err);
   });
 }
 
-// Query method with error tracking
+// Centralized query method with error tracking
 async function query(text, params) {
+  const start = Date.now();
   try {
-    return await global.pool.query(text, params);
+    const result = await global.postgresPoolInstance.query(text, params);
+    const duration = Date.now() - start;
+    console.log('Executed query', { text, duration, rows: result.rowCount });
+    return result;
   } catch (error) {
-    console.error('Database Query Error:', {
-      message: error.message,
-      stack: error.stack,
+    console.error('Query Error', {
       query: text,
-      params
+      params,
+      error: error.message,
+      stack: error.stack
     });
     throw error;
   }
@@ -35,5 +39,5 @@ async function query(text, params) {
 
 module.exports = {
   query,
-  pool: global.pool
+  originalPool: global.postgresPoolInstance
 };

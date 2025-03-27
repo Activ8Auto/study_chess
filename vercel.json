@@ -2,6 +2,11 @@
   "version": 2,
   "builds": [
     {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": { "distDir": "build" }
+    },
+    {
       "src": "api/server.js",
       "use": "@vercel/node",
       "config": {
@@ -10,6 +15,15 @@
     }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "api/server.js" }
-  ]
+    { "src": "/favicon.ico", "dest": "/favicon.ico" },
+    { "src": "/static/(.*)", "dest": "/static/$1" },
+    { "src": "/api/(.*)", "dest": "api/server.js" },
+    { "src": "/auth/(.*)", "dest": "api/server.js" },
+    { "src": "/chess/(.*)", "dest": "api/server.js" },
+    { "src": "/notes/(.*)", "dest": "api/server.js" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
 }
