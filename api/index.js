@@ -5,19 +5,24 @@ const bcrypt = require("bcryptjs");
 const db = require("./db");
 
 const app = express();
+
 const allowedOrigins = ["https://chess-notes.com", "http://localhost:3000"];
 
-
-app.use(
-  cors({
-    origin: allowedOrigins,
-    credentials: true, // This allows cookies/authorization headers
-  })
-);
-app.options("*", cors({
-  origin: allowedOrigins,
+// CORS configuration object
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   credentials: true,
-}));
+};
+
+// ✅ Apply CORS to ALL routes & preflights
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions)); // <- This is critical
 
 app.use(express.json());
 // Authentication Middleware
