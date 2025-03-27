@@ -1,21 +1,15 @@
+// db.js
 require("dotenv").config();
 const { Client } = require("pg");
 
 const createDbClient = () => {
+  console.log("Creating DB client with DATABASE_URL:", process.env.DATABASE_URL ? "Set" : "Not set");
   const client = new Client({
     connectionString: process.env.DATABASE_URL,
-    connectionTimeoutMillis: 8000, // Increased to 8 seconds
+    connectionTimeoutMillis: 5000, // 5 seconds max for connection
+    ssl: { rejectUnauthorized: false } // Explicit SSL for Neon
   });
-
-  // Log connection events for debugging
-  client.on("connect", () => {
-    console.log("✅ Connected to NeonDB");
-  });
-
-  client.on("error", (err) => {
-    console.error("❌ Unexpected error on client:", err.stack);
-  });
-
+  client.on("error", (err) => console.error("DB Client error:", err));
   return client;
 };
 
