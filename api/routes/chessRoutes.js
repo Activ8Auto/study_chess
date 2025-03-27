@@ -10,7 +10,6 @@ router.get("/games/:username/:year/:month", async (req, res) => {
   let { username, year, month } = req.params;
   console.log(`Fetching games for ${username}/${year}/${month}`);
   
-
   // Ensure month is always two digits (e.g., "03" instead of "3")
   month = month.padStart(2, "0");
 
