@@ -31,10 +31,8 @@ export default function MoveList({ moveList, currentPath, setCurrentPath, mistak
               borderRadius: 1,
               color: isMistake ? "error.main" : "inherit",
               "&:hover": item.path ? { bgcolor: "grey.200" } : {},
-              display: "inline-flex",
-              alignItems: "center",
-              maxWidth: "100%",
-              overflow: "hidden",
+              display: "inline-block",
+              verticalAlign: "top",
             }}
             onClick={() => item.path && setPath(item.path)}
             role={item.path ? "button" : undefined}
@@ -65,7 +63,11 @@ export default function MoveList({ moveList, currentPath, setCurrentPath, mistak
 
       if (item.isVariationStart) {
         if (currentLine.length) {
-          lines.push(<Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>{currentLine}</Box>);
+          lines.push(
+            <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
+              {currentLine}
+            </Box>
+          );
           currentLine = [];
         }
         currentVariationDepth = item.variationDepth + 1;
@@ -84,7 +86,11 @@ export default function MoveList({ moveList, currentPath, setCurrentPath, mistak
         currentVariationDepth = item.variationDepth;
       } else if (item.isResult) {
         if (currentLine.length) {
-          lines.push(<Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>{currentLine}</Box>);
+          lines.push(
+            <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
+              {currentLine}
+            </Box>
+          );
         }
         lines.push(
           <Box key={`result-${index}`} sx={{ mt: 1, fontWeight: "bold" }}>
@@ -95,14 +101,22 @@ export default function MoveList({ moveList, currentPath, setCurrentPath, mistak
       } else {
         currentLine.push(pushMoveBox());
         if ((!isWhiteMove && !item.isVariation) || isBlackVariationMove) {
-          lines.push(<Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>{currentLine}</Box>);
+          lines.push(
+            <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
+              {currentLine}
+            </Box>
+          );
           currentLine = [];
         }
       }
     });
 
     if (currentLine.length) {
-      lines.push(<Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>{currentLine}</Box>);
+      lines.push(
+        <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
+          {currentLine}
+        </Box>
+      );
     }
 
     return lines;
@@ -118,7 +132,6 @@ export default function MoveList({ moveList, currentPath, setCurrentPath, mistak
           flexGrow: 1,
           maxHeight: "400px",
           overflowY: "auto",
-          overflowX: "auto",
           p: 2,
           mt: 1,
           borderRadius: "8px",
