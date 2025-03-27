@@ -1,18 +1,25 @@
-// db.js
+// api/db.js
 require("dotenv").config();
-const { Client } = require("pg");
+const { Pool } = require("pg");
 
-const createDbClient = () => {
-  console.log("DATABASE_URL:", process.env.DATABASE_URL || "Not set");
-  const client = new Client({
-    connectionString: process.env.DATABASE_URL,
-    connectionTimeoutMillis: 5000,
-    ssl: { rejectUnauthorized: false }
-  });
-  client.on("error", (err) => console.error("DB Client error:", err.stack));
-  client.connect()
-    .then(() => console.log("DB connected successfully"))
-    .catch(err => console.error("DB connection failed:", err.stack));
-  return client;
-};
-module.exports = createDbClient;
+// Create a connection pool
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  connectionTimeoutMillis: 10000, // Increased timeout for serverless cold starts
+  ssl: {
+    rejectUnauthorized: false // Required for Neon DB
+  },
+  max: 10, // Max number of clients in the pool (adjust based on usage)
+  idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
+});
+
+// Log pool creation for debugging
+console.log("Database pool created with DATABASE_URL:", process.env.DATABASE_URL ? "Set" : "Not set");
+
+// Handle pool errors
+pool.on("error", (err, client) => {
+  console.error("Unexpected error on idle pool client:", err.stack);
+});
+
+// Export the pool for use in other modules
+module.exports = pool;

@@ -1,123 +1,93 @@
-require("dotenv").config();
+// api/index.js
 const express = require("express");
-const cors = require("cors");
-const bodyParser = require("body-parser");
 const jwt = require("jsonwebtoken");
-const createDbClient = require("./db"); // Updated to import createDbClient
-const chessRoutes = require("./routes/chessRoutes");
-const authRoutes = require("./routes/authRoutes");
+const bcrypt = require("bcrypt");
+const pool = require("./db"); // Import the pool
 
 const app = express();
+app.use(express.json());
 
-// Middleware
-app.use(cors());
-app.use(bodyParser.json());
+// Middleware to verify JWT
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+  if (!token) return res.sendStatus(401);
 
-// Verify JWT Middleware
-const verifyToken = (req, res, next) => {
-  const token = req.headers["authorization"];
-  if (!token) return res.status(403).json({ error: "No token provided" });
-  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-    if (err) return res.status(401).json({ error: "Failed to authenticate token" });
-    req.userId = decoded.userId;
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) return res.sendStatus(403);
+    req.user = user;
     next();
   });
 };
 
-// Routes
-app.use("/chess", chessRoutes); // Now /api/chess on Vercel
-app.use("/auth", authRoutes);   // Now /api/auth on Vercel
-
-// Notes Routes (protected)
-app.get("/notes", verifyToken, async (req, res) => {
-  const client = createDbClient();
+// Auth Routes
+app.post("/api/auth/register", async (req, res) => {
+  const { username, password } = req.body;
   try {
-    await client.connect();
-    const result = await client.query("SELECT * FROM notes_2 ORDER BY last_modified DESC");
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const result = await pool.query(
+      "INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id, username",
+      [username, hashedPassword]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error("Register error:", err.stack);
+    res.status(500).json({ error: "Username already exists or database error" });
+  }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  const { username, password } = req.body;
+  try {
+    const result = await pool.query("SELECT * FROM users WHERE username = $1", [username]);
+    const user = result.rows[0];
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+    const token = jwt.sign({ id: user.id, username: user.username }, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
+    res.json({ token });
+  } catch (err) {
+    console.error("Login error:", err.stack);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// Notes Routes
+app.get("/api/notes", authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM notes WHERE user_id = $1", [req.user.id]);
     res.json(result.rows);
   } catch (err) {
-    console.error("DB error:", err);
-    res.status(500).json({ error: "Error retrieving notes" });
-  } finally {
-    await client.end(); // Ensure the client is closed
+    console.error("Get notes error:", err.stack);
+    res.status(500).json({ error: "Database error" });
   }
 });
 
-app.get("/notes/:id", verifyToken, async (req, res) => {
-  const client = createDbClient();
+app.post("/api/notes", authenticateToken, async (req, res) => {
+  const { title, content } = req.body;
   try {
-    await client.connect();
-    const { id } = req.params;
-    const result = await client.query("SELECT * FROM notes_2 WHERE id = $1", [id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: "Note not found" });
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error("DB error:", err);
-    res.status(500).json({ error: "Error retrieving note" });
-  } finally {
-    await client.end();
-  }
-});
-
-app.post("/notes", verifyToken, async (req, res) => {
-  const client = createDbClient();
-  try {
-    await client.connect();
-    const { title, pgn } = req.body;
-    const result = await client.query(
-      "INSERT INTO notes_2 (title, pgn, created_at, last_modified) VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) RETURNING *",
-      [title || "New Game Note", pgn || ""]
+    const result = await pool.query(
+      "INSERT INTO notes (user_id, title, content) VALUES ($1, $2, $3) RETURNING *",
+      [req.user.id, title, content]
     );
-    res.json(result.rows[0]);
+    res.status(201).json(result.rows[0]);
   } catch (err) {
-    console.error("DB error:", err);
-    res.status(500).json({ error: "Error adding note" });
-  } finally {
-    await client.end();
+    console.error("Create note error:", err.stack);
+    res.status(500).json({ error: "Database error" });
   }
 });
 
-app.put("/notes/:id", verifyToken, async (req, res) => {
-  const client = createDbClient();
+// Chess Routes (example)
+app.get("/api/chess/games", authenticateToken, async (req, res) => {
   try {
-    await client.connect();
-    const { id } = req.params;
-    const { title, pgn } = req.body;
-    const result = await client.query(
-      "UPDATE notes_2 SET title = $1, pgn = $2, last_modified = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *",
-      [title || "New Game Note", pgn || "", id]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ error: "Note not found" });
-    res.json(result.rows[0]);
+    const result = await pool.query("SELECT * FROM chess_games WHERE user_id = $1", [req.user.id]);
+    res.json(result.rows);
   } catch (err) {
-    console.error("DB error:", err);
-    res.status(500).json({ error: "Error updating note" });
-  } finally {
-    await client.end();
+    console.error("Get chess games error:", err.stack);
+    res.status(500).json({ error: "Database error" });
   }
 });
 
-app.delete("/notes/:id", verifyToken, async (req, res) => {
-  const client = createDbClient();
-  try {
-    await client.connect();
-    const { id } = req.params;
-    const result = await client.query("DELETE FROM notes_2 WHERE id = $1 RETURNING id", [id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: "Note not found" });
-    res.status(204).send();
-  } catch (err) {
-    console.error("DB error:", err);
-    res.status(500).json({ error: "Error deleting note" });
-  } finally {
-    await client.end();
-  }
-});
-
-// Export for Vercel
 module.exports = app;
-
-// // Optional: Run locally for testing (remove for Vercel deployment)
-// if (process.env.NODE_ENV !== "production") {
-//   const port = process.env.PORT || 5001;
-//   // app.listen(port, () => console.log(`Server running on port ${port}`));
-// }
