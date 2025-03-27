@@ -4,7 +4,7 @@ const { Pool } = require("pg");
 
 // Create a connection pool
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: "postgresql://neondb_owner:npg_IaW7QzXnfvt9@ep-empty-field-a51nrawf-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require",
   connectionTimeoutMillis: 10000, // Increased timeout for serverless cold starts
   ssl: {
     rejectUnauthorized: false // Required for Neon DB
