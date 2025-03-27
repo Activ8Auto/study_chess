@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Chess } from "chess.js";
 import { buildMoveList } from "../utils/moveUtils";
 
