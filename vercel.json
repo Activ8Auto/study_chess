@@ -8,18 +8,22 @@
     },
     {
       "src": "api/server.js",
-      "use": "@vercel/node"
+      "use": "@vercel/node",
+      "config": {
+        "maxDuration": 20
+      }
     }
   ],
   "routes": [
     { "src": "/favicon.ico", "dest": "/favicon.ico" },
     { "src": "/static/(.*)", "dest": "/static/$1" },
-
     { "src": "/api/(.*)", "dest": "api/server.js" },
     { "src": "/auth/(.*)", "dest": "api/server.js" },
     { "src": "/chess/(.*)", "dest": "api/server.js" },
     { "src": "/notes/(.*)", "dest": "api/server.js" },
-
     { "src": "/(.*)", "dest": "/index.html" }
-  ]
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
 }
