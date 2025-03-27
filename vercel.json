@@ -12,13 +12,14 @@
     }
   ],
   "routes": [
-    { "src": "/favicon.ico",   "dest": "/favicon.ico" },
-    { "src": "/static/(.*)",   "dest": "/static/$1" },
+    { "src": "/favicon.ico", "dest": "/favicon.ico" },
+    { "src": "/static/(.*)", "dest": "/static/$1" },
 
-    { "src": "/auth/(.*)",     "dest": "api/server.js" },
-    { "src": "/chess/(.*)",    "dest": "api/server.js" },
-    { "src": "/notes/(.*)",    "dest": "api/server.js" },
+    { "src": "/api/(.*)", "dest": "api/server.js" },
+    { "src": "/auth/(.*)", "dest": "api/server.js" },
+    { "src": "/chess/(.*)", "dest": "api/server.js" },
+    { "src": "/notes/(.*)", "dest": "api/server.js" },
 
-    { "src": "/(.*)",          "dest": "/index.html" }
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
