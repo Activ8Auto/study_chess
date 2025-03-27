@@ -1,25 +1,22 @@
 require("dotenv").config();
-const { Pool } = require("pg");
+const { Client } = require("pg");
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  },
-  max: 10, // optional, limit connections
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000
-});
+const createDbClient = () => {
+  const client = new Client({
+    connectionString: process.env.DATABASE_URL,
+    connectionTimeoutMillis: 8000, // Increased to 8 seconds
+  });
 
-// Handle pool errors to prevent crashes
-pool.on("error", (err, client) => {
-  console.error("❌ Unexpected error on idle client:", err.stack);
-  // Pool will automatically try to replace the errored client
-});
+  // Log connection events for debugging
+  client.on("connect", () => {
+    console.log("✅ Connected to NeonDB");
+  });
 
-// Log successful connection when the pool acquires a client
-pool.on("connect", () => {
-  console.log("✅ Connected to NeonDB");
-});
-//test
-module.exports = pool;
+  client.on("error", (err) => {
+    console.error("❌ Unexpected error on client:", err.stack);
+  });
+
+  return client;
+};
+
+module.exports = createDbClient;

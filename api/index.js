@@ -32,11 +32,16 @@ app.use("/auth", authRoutes);   // Now /api/auth on Vercel
 
 // Notes Routes (protected)
 app.get("/notes", verifyToken, async (req, res) => {
+  const client = createDbClient();
   try {
-    const result = await pool.query("SELECT * FROM notes_2 ORDER BY last_modified DESC");
+    await client.connect();
+    const result = await client.query("SELECT * FROM notes_2 ORDER BY last_modified DESC");
     res.json(result.rows);
   } catch (err) {
+    console.error("DB error:", err);
     res.status(500).json({ error: "Error retrieving notes" });
+  } finally {
+    await client.end(); // Ensure the client is closed
   }
 });
 
