@@ -25,6 +25,11 @@ app.use(cors(corsOptions));
 app.options("*", cors(corsOptions)); // <- This is critical
 
 app.use(express.json());
+
+const authRoutes = require('./routes/authRoutes');
+app.use('/auth', authRoutes);
+
+
 // Authentication Middleware
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
