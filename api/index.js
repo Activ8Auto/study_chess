@@ -1,11 +1,12 @@
 const express = require("express");
+const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const db = require("./db");
-const cors = require("cors");
+
 const app = express();
 const allowedOrigins = ["https://chess-notes.com", "http://localhost:3000"];
-app.use(express.json());
+
 
 app.use(
   cors({
@@ -13,7 +14,9 @@ app.use(
     credentials: true, // This allows cookies/authorization headers
   })
 );
+app.options("*", cors()); // Enable pre-flight for all routes
 
+app.use(express.json());
 // Authentication Middleware
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
