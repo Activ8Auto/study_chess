@@ -2,17 +2,17 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const db = require("./db");
-
+const cors = require("cors");
 const app = express();
+const allowedOrigins = ["https://chess-notes.com", "http://localhost:3000"];
 app.use(express.json());
 
-// Cors middleware for serverless
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  next();
-});
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true, // This allows cookies/authorization headers
+  })
+);
 
 // Authentication Middleware
 const authenticateToken = (req, res, next) => {
