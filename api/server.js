@@ -1,6 +1,9 @@
-// api/server.js
 const serverless = require("serverless-http");
-const app = require("./index"); // Your Express app
+const app = require("./index");
 
-// Export the handler explicitly
-module.exports = serverless(app);
+// Export handler with custom error handling
+module.exports = serverless(app, {
+  // Optional: custom error handler for serverless
+  binary: ['*/*'],
+  provider: 'vercel'
+});

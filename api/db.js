@@ -1,34 +1,60 @@
+// api/db.js
 const { Pool } = require("pg");
 
-// Create a connection pool with serverless-friendly settings
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false // Only for Neon DB
-  },
-  max: 5, // Reduce pool size for serverless
-  connectionTimeoutMillis: 15000, // Increased timeout
-  idleTimeoutMillis: 10000, // Shorter idle timeout
-  query_timeout: 8000, // 8 seconds query timeout
-});
+// Global variable to prevent multiple pool creations
+global.postgresPoolInstance = global.postgresPoolInstance || null;
 
-// Enhanced error handling
-pool.on("error", (err) => {
-  console.error("Unexpected database pool error", err);
-});
+function createPool() {
+  return new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false // Required for Neon DB
+    },
+    // Crucial serverless optimizations
+    max: 1, // Limit to one connection
+    connectionTimeoutMillis: 30000, // 30 second connection timeout
+    idleTimeoutMillis: 10000, // Close idle connections quickly
+    statement_timeout: 10000, // 10 second statement timeout
+  });
+}
 
-// Graceful shutdown function
-async function shutdown() {
+// Ensure only one pool is created
+function getPool() {
+  if (!global.postgresPoolInstance) {
+    global.postgresPoolInstance = createPool();
+  }
+  return global.postgresPoolInstance;
+}
+
+// Centralized query method with robust error handling
+async function query(text, params) {
+  const pool = getPool();
   try {
-    await pool.end();
-    console.log("Database pool closed");
-  } catch (err) {
-    console.error("Error closing database pool", err);
+    return await pool.query(text, params);
+  } catch (error) {
+    console.error('Database Query Error:', error);
+    throw error;
   }
 }
 
-// Handle process termination
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+// Graceful shutdown (important for serverless)
+async function shutdown() {
+  if (global.postgresPoolInstance) {
+    try {
+      await global.postgresPoolInstance.end();
+      console.log('Database pool closed');
+    } catch (error) {
+      console.error('Error closing database pool', error);
+    }
+  }
+}
 
-module.exports = pool;
+// Handle potential process termination
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+
+module.exports = {
+  query,
+  pool: getPool(),
+  shutdown
+};
