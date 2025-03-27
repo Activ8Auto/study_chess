@@ -1,7 +1,8 @@
+// api/authRoutes.js
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const createDbClient = require('../db'); // Updated to use createDbClient instead of pool
+const pool = require('../db'); // Import the pool from db.js
 const router = express.Router();
 
 // Middleware to verify token
@@ -19,12 +20,10 @@ const verifyToken = (req, res, next) => {
 router.post('/register', async (req, res) => {
   console.log('Register request:', req.body);
   const { username, password, chesscomUsername } = req.body;
-  const client = createDbClient();
   try {
-    await client.connect();
     const hashedPassword = await bcrypt.hash(password, 10);
     console.log('Hashed password:', hashedPassword);
-    const result = await client.query(
+    const result = await pool.query(
       'INSERT INTO users (username, password, chesscom_username) VALUES ($1, $2, $3) RETURNING id',
       [username, hashedPassword, chesscomUsername]
     );
@@ -33,20 +32,15 @@ router.post('/register', async (req, res) => {
   } catch (error) {
     console.error('Error registering user:', error);
     res.status(500).json({ error: 'Error registering user' });
-  } finally {
-    await client.end(); // Ensure the client is closed, even if an error occurs
   }
 });
 
 // User Login
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
-  const client = createDbClient();
   try {
     console.log("Starting login attempt:", new Date());
-    await client.connect();
-    console.log("Connected to DB:", new Date());
-    const result = await client.query('SELECT * FROM users WHERE username = $1', [username]);
+    const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
     console.log("Query completed:", new Date());
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -62,20 +56,16 @@ router.post('/login', async (req, res) => {
   } catch (error) {
     console.error('Error logging in:', error);
     res.status(500).json({ error: 'Error logging in' });
-  } finally {
-    await client.end();
-    console.log("Client closed:", new Date());
   }
 });
+
 // Update Password
 router.put('/update-password', verifyToken, async (req, res) => {
   const { newPassword } = req.body;
   if (!newPassword) return res.status(400).json({ error: 'New password required' });
-  const client = createDbClient();
   try {
-    await client.connect();
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    const result = await client.query(
+    const result = await pool.query(
       'UPDATE users SET password = $1 WHERE id = $2 RETURNING id',
       [hashedPassword, req.userId]
     );
@@ -86,8 +76,6 @@ router.put('/update-password', verifyToken, async (req, res) => {
   } catch (error) {
     console.error('Error updating password:', error);
     res.status(500).json({ error: 'Error updating password' });
-  } finally {
-    await client.end(); // Ensure the client is closed
   }
 });
 
@@ -95,10 +83,8 @@ router.put('/update-password', verifyToken, async (req, res) => {
 router.put('/update-chesscom', verifyToken, async (req, res) => {
   const { chesscomUsername } = req.body;
   if (!chesscomUsername) return res.status(400).json({ error: 'Chess.com username required' });
-  const client = createDbClient();
   try {
-    await client.connect();
-    const result = await client.query(
+    const result = await pool.query(
       'UPDATE users SET chesscom_username = $1 WHERE id = $2 RETURNING id, chesscom_username',
       [chesscomUsername, req.userId]
     );
@@ -109,8 +95,6 @@ router.put('/update-chesscom', verifyToken, async (req, res) => {
   } catch (error) {
     console.error('Error updating Chess.com username:', error);
     res.status(500).json({ error: 'Error updating Chess.com username' });
-  } finally {
-    await client.end(); // Ensure the client is closed
   }
 });
 
