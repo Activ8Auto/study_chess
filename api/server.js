@@ -3,4 +3,4 @@ const serverless = require("serverless-http");
 const app = require("./index"); // Your Express app
 
 // Export the handler explicitly
-module.exports.handler = serverless(app);
+module.exports = serverless(app);
