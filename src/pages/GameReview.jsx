@@ -383,11 +383,12 @@ const handleAnnotationChange = (value) => {
     xs={12}
     md={6}
     sx={{
-      maxHeight: { md: "100vh" }, // Match the left side’s max height
+      maxHeight: { md: "100vh" },
       overflowY: "auto",
+      maxWidth: { md: "100%" }, // Ensure it respects its column width
     }}
   >
-    <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+    <Card sx={{ height: "100%", display: "flex", flexDirection: "column",  maxWidth: "100%", }}>
       <CardContent sx={{ flexGrow: 1 }}>
         {/* ... Annotation and MoveList ... */}
         <Typography variant="h6">Annotation</Typography>
@@ -399,6 +400,8 @@ const handleAnnotationChange = (value) => {
             boxShadow: "inset 0px 2px 4px rgba(0, 0, 0, 0.1)",
             mt: 1,
             p: 1,
+            maxWidth: "100%", // Prevent Paper from growing beyond its container
+    overflow: "hidden", // Clip any overflow
           }}
         >
           <textarea
@@ -415,7 +418,8 @@ const handleAnnotationChange = (value) => {
               resize: "none",
               backgroundColor: "transparent",
               whiteSpace: "pre-wrap",       // So text can wrap to next line
-    overflowWrap: "break-word", 
+              wordBreak: "break-word",
+              overflowWrap: "anywhere"
             }}
           />
           {pinnedMove && (
@@ -475,8 +479,25 @@ const handleAnnotationChange = (value) => {
           Analyze Full Game
         </Button>
 
-        <Card sx={{ mt: 2, height: "100%" }}>
-          <CardContent sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+        <Card
+  sx={{
+    mt: 2,
+    height: "100%",
+    maxWidth: "100%", // Prevent it from exceeding the Grid’s width
+    overflow: "hidden", // Clip any overflow
+  }}
+>
+<CardContent
+    sx={{
+      height: "100%",
+      display: "flex",
+      flexDirection: "column",
+      maxWidth: "100%", // Ensure content stays within bounds
+      overflowX: "auto", // Scroll horizontally if needed
+      overflowY: "auto", // Scroll vertically if needed
+      boxSizing: "border-box", // Include padding in width/height
+    }}
+  >
             <MoveList
               moveList={moveList}
               currentPath={currentPath}

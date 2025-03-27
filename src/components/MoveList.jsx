@@ -31,14 +31,31 @@ export default function MoveList({ moveList, currentPath, setCurrentPath, mistak
               borderRadius: 1,
               color: isMistake ? "error.main" : "inherit",
               "&:hover": item.path ? { bgcolor: "grey.200" } : {},
+              display: "inline-flex",
+              alignItems: "center",
+              maxWidth: "100%",
+              overflow: "hidden",
             }}
             onClick={() => item.path && setPath(item.path)}
             role={item.path ? "button" : undefined}
             aria-label={item.path ? `Go to move ${item.text}` : undefined}
           >
-            {item.text}
+            <Typography component="span" sx={{ flexShrink: 0 }}>
+              {item.text}
+            </Typography>
             {item.annotation && (
-              <Box component="span" sx={{ fontStyle: "italic", color: "text.secondary", ml: 1 }}>
+              <Box
+                component="span"
+                sx={{
+                  fontStyle: "italic",
+                  color: "text.secondary",
+                  ml: 1,
+                  maxWidth: "150px",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {item.annotation}
               </Box>
             )}
@@ -92,20 +109,23 @@ export default function MoveList({ moveList, currentPath, setCurrentPath, mistak
   };
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", maxWidth: "100%" }}>
       <Typography variant="h6" gutterBottom>
         Move List
       </Typography>
       <Paper
         sx={{
           flexGrow: 1,
-          maxHeight: "400px", // Set a reasonable max height, adjustable
+          maxHeight: "400px",
           overflowY: "auto",
+          overflowX: "auto",
           p: 2,
           mt: 1,
           borderRadius: "8px",
           backgroundColor: "#f5f5f5",
           boxShadow: "inset 0px 2px 4px rgba(0, 0, 0, 0.1)",
+          maxWidth: "100%",
+          boxSizing: "border-box",
         }}
       >
         {moveList.length ? (
