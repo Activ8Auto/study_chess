@@ -1,5 +1,7 @@
-const serverless = require("serverless-http");
+// api/server.js (rename to server.js if needed)
 const app = require("./index");
 
-// Export handler without provider specification
-module.exports = serverless(app);
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
