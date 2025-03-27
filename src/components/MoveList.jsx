@@ -24,21 +24,36 @@ export default function MoveList({ moveList, currentPath, setCurrentPath, mistak
             key={`move-${index}`}
             component="span"
             sx={{
-              ml: `${currentVariationDepth * 20}px`,
+              display: "inline-block",
+              verticalAlign: "middle",
+              ml: `${currentVariationDepth * 5}px`,
               cursor: item.path ? "pointer" : "default",
               bgcolor: isCurrentMove ? "#b2ebf2" : "transparent",
-              p: "2px 6px",
+              px: 0.25,
               borderRadius: 1,
               color: isMistake ? "error.main" : "inherit",
               "&:hover": item.path ? { bgcolor: "grey.200" } : {},
-              display: "inline-block",
-              verticalAlign: "top",
+              maxWidth: "100%",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
             onClick={() => item.path && setPath(item.path)}
             role={item.path ? "button" : undefined}
             aria-label={item.path ? `Go to move ${item.text}` : undefined}
           >
-            <Typography component="span" sx={{ flexShrink: 0 }}>
+            <Typography 
+              component="span" 
+              sx={{ 
+                fontSize: "0.75rem",
+                lineHeight: 1.2,
+                display: "inline-block",
+                maxWidth: "100%",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
               {item.text}
             </Typography>
             {item.annotation && (
@@ -47,11 +62,14 @@ export default function MoveList({ moveList, currentPath, setCurrentPath, mistak
                 sx={{
                   fontStyle: "italic",
                   color: "text.secondary",
-                  ml: 1,
-                  maxWidth: "150px",
+                  ml: 0.25,
+                  fontSize: "0.625rem",
+                  maxWidth: "30px",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
+                  display: "inline-block",
+                  verticalAlign: "middle",
                 }}
               >
                 {item.annotation}
@@ -64,20 +82,35 @@ export default function MoveList({ moveList, currentPath, setCurrentPath, mistak
       if (item.isVariationStart) {
         if (currentLine.length) {
           lines.push(
-            <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
+            <Box
+              key={`line-${lines.length}`}
+              sx={{
+                display: "flex",
+                flexWrap: "nowrap",
+                overflowX: "hidden",
+                mb: 0.5,
+                width: "100%",
+              }}
+            >
               {currentLine}
             </Box>
           );
           currentLine = [];
         }
         currentVariationDepth = item.variationDepth + 1;
-        currentLine.push(<Box key={`var-start-${index}`} component="span">(</Box>);
+        currentLine.push(<Box key={`var-start-${index}`} component="span" sx={{ mr: 0.5 }}>(</Box>);
       } else if (item.isVariationEnd) {
-        currentLine.push(<Box key={`var-end-${index}`} component="span">)</Box>);
+        currentLine.push(<Box key={`var-end-${index}`} component="span" sx={{ ml: 0.5 }}>)</Box>);
         lines.push(
           <Box
             key={`line-${lines.length}`}
-            sx={{ mb: 0.5, ml: `${currentVariationDepth * 20}px` }}
+            sx={{
+              display: "flex",
+              flexWrap: "nowrap",
+              overflowX: "hidden",
+              mb: 0.5,
+              ml: `${currentVariationDepth * 10}px`,
+            }}
           >
             {currentLine}
           </Box>
@@ -87,7 +120,15 @@ export default function MoveList({ moveList, currentPath, setCurrentPath, mistak
       } else if (item.isResult) {
         if (currentLine.length) {
           lines.push(
-            <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
+            <Box
+              key={`line-${lines.length}`}
+              sx={{
+                display: "flex",
+                flexWrap: "nowrap",
+                overflowX: "hidden",
+                mb: 0.5,
+              }}
+            >
               {currentLine}
             </Box>
           );
@@ -102,7 +143,15 @@ export default function MoveList({ moveList, currentPath, setCurrentPath, mistak
         currentLine.push(pushMoveBox());
         if ((!isWhiteMove && !item.isVariation) || isBlackVariationMove) {
           lines.push(
-            <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
+            <Box
+              key={`line-${lines.length}`}
+              sx={{
+                display: "flex",
+                flexWrap: "nowrap",
+                overflowX: "hidden",
+                mb: 0.5,
+              }}
+            >
               {currentLine}
             </Box>
           );
@@ -113,7 +162,15 @@ export default function MoveList({ moveList, currentPath, setCurrentPath, mistak
 
     if (currentLine.length) {
       lines.push(
-        <Box key={`line-${lines.length}`} sx={{ mb: 0.5 }}>
+        <Box
+          key={`line-${lines.length}`}
+          sx={{
+            display: "flex",
+            flexWrap: "nowrap",
+            overflowX: "hidden",
+            mb: 0.5,
+          }}
+        >
           {currentLine}
         </Box>
       );
@@ -123,22 +180,30 @@ export default function MoveList({ moveList, currentPath, setCurrentPath, mistak
   };
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", maxWidth: "100%" }}>
-      <Typography variant="h6" gutterBottom>
+    <Box sx={{ 
+      display: "flex", 
+      flexDirection: "column", 
+      height: "100%", 
+      width: "100%",
+      overflow: "hidden"
+    }}>
+      <Typography variant="h6" gutterBottom sx={{ fontSize: "1rem" }}>
         Move List
       </Typography>
       <Paper
         sx={{
           flexGrow: 1,
-          maxHeight: "400px",
-          overflowY: "auto",
-          p: 2,
-          mt: 1,
+          maxHeight: "400px", 
+          overflowY: "auto",  
+          overflowX: "hidden",  
+          p: 1, // Reduced padding
+          mt: 0.5, // Reduced margin
           borderRadius: "8px",
           backgroundColor: "#f5f5f5",
           boxShadow: "inset 0px 2px 4px rgba(0, 0, 0, 0.1)",
-          maxWidth: "100%",
-          boxSizing: "border-box",
+          width: "100%",     
+          maxWidth: "100%",  
+          boxSizing: "border-box", 
         }}
       >
         {moveList.length ? (
