@@ -10,7 +10,7 @@
       "src": "api/server.js",
       "use": "@vercel/node",
       "config": {
-        "maxDuration": 20
+        "maxDuration": 30
       }
     }
   ],

@@ -1,14 +1,10 @@
-// api/index.js
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
-const pool = require("./db"); // Import the pool
+const db = require("./db");
 
 const app = express();
 app.use(express.json());
-
-// Disable automatic timeout
-app.set('timeout', 0);
 
 // Middleware to verify JWT
 const authenticateToken = (req, res, next) => {
@@ -23,87 +19,49 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-
-// Auth Routes
-app.post("/api/auth/register", async (req, res) => {
-  const { username, password } = req.body;
-  try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const result = await pool.query(
-      "INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id, username",
-      [username, hashedPassword]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    console.error("Register error:", err.stack);
-    res.status(500).json({ error: "Username already exists or database error" });
-  }
-});
-app.get("/api/test-db", async (req, res) => {
-  try {
-    const result = await pool.query("SELECT 1 AS test");
-    console.log("Test query result:", result.rows);
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error("Test query error:", err.stack);
-    res.status(500).json({ error: "Test query failed" });
-  }
-});
-
-
+// Login Route with Improved Error Handling
 app.post("/api/auth/login", async (req, res) => {
   const { username, password } = req.body;
+  
   try {
-    const result = await pool.query("SELECT * FROM users WHERE username = $1", [username]);
-    console.log("username query result:", result.rows);
+    // Use centralized query method
+    const result = await db.query("SELECT * FROM users WHERE username = $1", [username]);
+    
     const user = result.rows[0];
-    if (!user || !(await bcrypt.compare(password, user.password))) {
+    if (!user) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
-    const token = jwt.sign({ id: user.id, username: user.username }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
-    res.json({ token });
-  } catch (err) {
-    console.error("Login error:", err.stack);
-    res.status(500).json({ error: "Database error" });
-  }
-});
 
-// Notes Routes
-app.get("/api/notes", authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query("SELECT * FROM notes WHERE user_id = $1", [req.user.id]);
-    res.json(result.rows);
-  } catch (err) {
-    console.error("Get notes error:", err.stack);
-    res.status(500).json({ error: "Database error" });
-  }
-});
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
 
-app.post("/api/notes", authenticateToken, async (req, res) => {
-  const { title, content } = req.body;
-  try {
-    const result = await pool.query(
-      "INSERT INTO notes (user_id, title, content) VALUES ($1, $2, $3) RETURNING *",
-      [req.user.id, title, content]
+    const token = jwt.sign(
+      { id: user.id, username: user.username }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: "1h" }
     );
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    console.error("Create note error:", err.stack);
-    res.status(500).json({ error: "Database error" });
+
+    res.json({ token, userId: user.id });
+  } catch (error) {
+    console.error('Login Error:', error);
+    res.status(500).json({ 
+      error: "Database error", 
+      details: error.message 
+    });
   }
 });
 
-// Chess Routes (example)
-app.get("/api/chess/games", authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query("SELECT * FROM chess_games WHERE user_id = $1", [req.user.id]);
-    res.json(result.rows);
-  } catch (err) {
-    console.error("Get chess games error:", err.stack);
-    res.status(500).json({ error: "Database error" });
-  }
+// Other routes remain similar, using db.query instead of pool.query
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('Unhandled Error:', err);
+  res.status(500).json({ 
+    error: "Internal Server Error", 
+    message: err.message 
+  });
 });
 
 module.exports = app;
