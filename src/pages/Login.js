@@ -61,20 +61,20 @@ const Login = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
-      const data = await response.json();
-      if (response.ok) {
-        setToken(data.token);
-        useChessStore.getState().setUserChesscomUsername(data.chesscomUsername);
-        navigate("/");
-      } else {
-        alert(data.error);
+      if (!response.ok) {
+        const text = await response.text(); // Get raw text
+        throw new Error(`Login failed: ${response.status} - ${text}`);
       }
+      const data = await response.json();
+      setToken(data.token);
+      useChessStore.getState().setUserChesscomUsername(data.chesscomUsername);
+      navigate("/");
     } catch (error) {
       console.error("Error logging in:", error);
-      alert("An error occurred during login");
+      alert(error.message || "An error occurred during login");
     }
   };
-
+  
   // Registration submission
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();

@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { Chess } from "chess.js";
+import { createJSONStorage } from "zustand/middleware";
+
 
 const parsePGNHeaders = (pgn) => {
   const chess = new Chess();
@@ -167,7 +169,7 @@ setUserChesscomUsername: (chesscomUsername) => set({ chesscomUsername }),
     }),
     {
       name: "chess-store",
-      getStorage: () => localStorage,
+      storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         notes: state.notes,
         selectedPGN: state.selectedPGN,
