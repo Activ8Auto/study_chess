@@ -35,15 +35,17 @@ const createNoteTitle = (headers) => {
   const { white, black, whiteElo, blackElo, date } = headers;
   return `${white} (${whiteElo}) vs ${black} (${blackElo}) - ${date}`;
 };
-
-export const API_BASE_URL = process.env.NODE_ENV === "production" ? "" : "/api"; // Use relative path
-
+// export const API_BASE_URL = "http://localhost:5001";
+export const API_BASE_URL = process.env.REACT_APP_API_PATH;
+console.log('REACT_APP_API_PATH:', process.env.REACT_APP_API_PATH);
 const useChessStore = create(
   persist(
     (set, get) => ({
       notes: [],
       selectedPGN: null,
       token: null,
+      chesscomUsername: null,
+setUserChesscomUsername: (chesscomUsername) => set({ chesscomUsername }),
       setToken: (token) => set({ token }),
       logout: () => set({ token: null, notes: [] }),
       fen: new Chess().fen(),
@@ -171,7 +173,8 @@ const useChessStore = create(
         selectedPGN: state.selectedPGN,
         fen: state.fen,
         analysisResults: state.analysisResults,
-        token: state.token, // Persist token
+        token: state.token,
+        chesscomUsername: state.chesscomUsername, 
       }),
     }
   )

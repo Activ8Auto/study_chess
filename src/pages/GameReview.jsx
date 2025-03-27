@@ -336,153 +336,161 @@ const handleAnnotationChange = (value) => {
     
   return (
     <>
-    <Grid container spacing={3}>
-      <Grid
-        item
-        xs={12}
-        md={6}
-        sx={{
-          position: { md: "sticky" },
-          top: "16px",
-          height: { md: "calc(100vh - 32px)" },
-          zIndex: 1,
-          overflowY: "auto",
-        }}
-      >
-        <Card sx={{ height: "100%" }}>
-        <ChessBoardArea
-  fen={fen}
-  boardOrientation={boardOrientation}
-  toggleBoardOrientation={toggleBoardOrientation}
-  handleShareClick={handleShareClick}
-  settingsAnchorEl={settingsAnchorEl}
-  setSettingsAnchorEl={setSettingsAnchorEl}
-  mistakeThreshold={mistakeThreshold}
-  setMistakeThreshold={setMistakeThreshold}
-  analysisDepth={analysisDepth}
-  setAnalysisDepth={setAnalysisDepth}
-  whitePlayer={whitePlayer}
-  blackPlayer={blackPlayer}
-  whiteElo={whiteElo}
-  blackElo={blackElo}
-  onPieceDrop={handlePieceDrop}
-  currentPath={currentPath}
-  goToMove={handleGoToMove}
-  moveTree={moveTree}
-  setCurrentPath={setCurrentPath}
-  setChess={setChess}
-  setFen={setFen}
-  topLine={topLine}
-  depth={depth}
-  engineEval={engineEval}
-/>
-        </Card>
-      </Grid>
-
-      <Grid item xs={12} md={6}>
-        <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-          <CardContent sx={{ flexGrow: 1 }}>
-          <Typography variant="h6">Annotation</Typography>
-<Paper
-  elevation={0}
-  sx={{
-    backgroundColor: "#f5f5f5",
-    borderRadius: "8px",
-    boxShadow: "inset 0px 2px 4px rgba(0, 0, 0, 0.1)",
-    mt: 1,
-    p: 1,
-  }}
->
-<textarea
-  value={annotationValue}
-  onChange={(e) => handleAnnotationChange(e.target.value)}
-  placeholder="Annotation here..."
-  style={{
-    width: "100%",
-    height: "120px",
-    padding: "8px",
-    fontSize: "14px",
-    borderRadius: "4px",
-    border: "1px solid #e0e0e0",
-    resize: "none",
-    backgroundColor: "transparent",
-  }}
-/>
-{pinnedMove && (
-  <Typography variant="body2" sx={{ mt: 1 }}>
-    Annotating: {pinnedMove.san}
-  </Typography>
-)}
-</Paper>
-<FormControlLabel
-    control={
-      <Checkbox
-        checked={!!pinnedMove}
-        onChange={() => {
-          if (pinnedMove) {
-            setPinnedMove(null);
-          } else {
-            const currentNode = currentPath[currentPath.length - 1];
-            setPinnedMove({
-              path: currentPath.map((node) => node.move).filter(Boolean),
-              san: currentNode.san,
-            });
-          }
-        }}
+    
+   <Grid container spacing={4}>
+   <Grid
+    item
+    xs={12}
+    md={6}
+    sx={{
+      position: { md: "sticky" },
+      top: "16px",
+      maxHeight: { md: "100 vh" }, // Cap at 80% of viewport height
+      maxWidth: { md: "50%" },  // Ensure it doesn’t exceed half the screen
+      overflowY: "auto",
+    }}
+  >
+    <Card sx={{ height: "100%", width: "100%", maxWidth: "100%" }}>
+      <ChessBoardArea
+        fen={fen}
+        boardOrientation={boardOrientation}
+        toggleBoardOrientation={toggleBoardOrientation}
+        handleShareClick={handleShareClick}
+        settingsAnchorEl={settingsAnchorEl}
+        setSettingsAnchorEl={setSettingsAnchorEl}
+        mistakeThreshold={mistakeThreshold}
+        setMistakeThreshold={setMistakeThreshold}
+        analysisDepth={analysisDepth}
+        setAnalysisDepth={setAnalysisDepth}
+        whitePlayer={whitePlayer}
+        blackPlayer={blackPlayer}
+        whiteElo={whiteElo}
+        blackElo={blackElo}
+        onPieceDrop={handlePieceDrop}
+        currentPath={currentPath}
+        goToMove={handleGoToMove}
+        moveTree={moveTree}
+        setCurrentPath={setCurrentPath}
+        setChess={setChess}
+        setFen={setFen}
+        topLine={topLine}
+        depth={depth}
+        engineEval={engineEval}
       />
-    }
-    label="Pin Annotation"
-    sx={{ mt: 1 }}
-  />
+    </Card>
+  </Grid>
 
+  <Grid
+    item
+    xs={12}
+    md={6}
+    sx={{
+      maxHeight: { md: "100vh" }, // Match the left side’s max height
+      overflowY: "auto",
+    }}
+  >
+    <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <CardContent sx={{ flexGrow: 1 }}>
+        {/* ... Annotation and MoveList ... */}
+        <Typography variant="h6">Annotation</Typography>
+        <Paper
+          elevation={0}
+          sx={{
+            backgroundColor: "#f5f5f5",
+            borderRadius: "8px",
+            boxShadow: "inset 0px 2px 4px rgba(0, 0, 0, 0.1)",
+            mt: 1,
+            p: 1,
+          }}
+        >
+          <textarea
+            value={annotationValue}
+            onChange={(e) => handleAnnotationChange(e.target.value)}
+            placeholder="Annotation here..."
+            style={{
+              width: "100%",
+              height: "120px",
+              padding: "8px",
+              fontSize: "14px",
+              borderRadius: "4px",
+              border: "1px solid #e0e0e0",
+              resize: "none",
+              backgroundColor: "transparent",
+            }}
+          />
+          {pinnedMove && (
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              Annotating: {pinnedMove.san}
+            </Typography>
+          )}
+        </Paper>
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={!!pinnedMove}
+              onChange={() => {
+                if (pinnedMove) {
+                  setPinnedMove(null);
+                } else {
+                  const currentNode = currentPath[currentPath.length - 1];
+                  setPinnedMove({
+                    path: currentPath.map((node) => node.move).filter(Boolean),
+                    san: currentNode.san,
+                  });
+                }
+              }}
+            />
+          }
+          label="Pin Annotation"
+          sx={{ mt: 1 }}
+        />
 
-            <Button
-  variant="contained"
-  onClick={async () => {
-    await savePGNWithAnnotations({
-      moveTree,
-      finalResult,
-      whitePlayer,
-      blackPlayer,
-      whiteElo,
-      blackElo,
-      updateNotePGN,
-      addNote,
-      effectiveGameId,
-      setSelectedPGN,
-      setFinalResult,
-      setSnackbar,
-      moveErrors,
-      mistakeSequences,
-      setAnalysisResults,
-    });
-  }}
-  sx={{ mt: 2, mr: 1 }}
->
-  Save PGN
-</Button>
+        <Button
+          variant="contained"
+          onClick={async () => {
+            await savePGNWithAnnotations({
+              moveTree,
+              finalResult,
+              whitePlayer,
+              blackPlayer,
+              whiteElo,
+              blackElo,
+              updateNotePGN,
+              addNote,
+              effectiveGameId,
+              setSelectedPGN,
+              setFinalResult,
+              setSnackbar,
+              moveErrors,
+              mistakeSequences,
+              setAnalysisResults,
+            });
+          }}
+          sx={{ mt: 2, mr: 1 }}
+        >
+          Save PGN
+        </Button>
 
-            <Button variant="contained" onClick={analyzeFullGame} sx={{ mt: 2, mr: 1 }}>
-              Analyze Full Game
-            </Button>
+        <Button variant="contained" onClick={analyzeFullGame} sx={{ mt: 2, mr: 1 }}>
+          Analyze Full Game
+        </Button>
 
-            <Card sx={{ mt: 2, height: "100%" }}>
-              <CardContent sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-               
-              <MoveList
-  moveList={moveList}
-  currentPath={currentPath}
-  setCurrentPath={setCurrentPath}
-  mistakeSequences={mistakeSequences}
-  goToMove={handleGoToMove} // Keep this for other uses
-  setPath={handleSetPath}  // Add this
-/>
-              </CardContent>
-            </Card>
+        <Card sx={{ mt: 2, height: "100%" }}>
+          <CardContent sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+            <MoveList
+              moveList={moveList}
+              currentPath={currentPath}
+              setCurrentPath={setCurrentPath}
+              mistakeSequences={mistakeSequences}
+              goToMove={handleGoToMove}
+              setPath={handleSetPath}
+            />
           </CardContent>
         </Card>
-      </Grid>
-    </Grid>
+      </CardContent>
+    </Card>
+  </Grid>
+</Grid>
 
     {/* Share Popover */}
     <Popover

@@ -5,7 +5,8 @@
   "dependencies": {
     "@emotion/react": "^11.x.x",
     "@emotion/styled": "^11.x.x",
-    "@mui/material": "^5.x.x",
+    "@mui/icons-material": "^7.0.0",
+    "@mui/material": "^7.0.0",
     "axios": "^1.x.x",
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.20.3",
@@ -15,7 +16,9 @@
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.14.0",
+    "pgn-parser": "^2.2.0",
     "react": "^18.x.x",
+    "react-chessboard": "^4.7.2",
     "react-dom": "^18.x.x",
     "react-router-dom": "^6.x.x",
     "react-scripts": "^5.0.1",
@@ -33,6 +36,7 @@
       "react-app/jest"
     ]
   },
+  "proxy": "http://localhost:5001",
   "browserslist": {
     "production": [
       ">0.2%",

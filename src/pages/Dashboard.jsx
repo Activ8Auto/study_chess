@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { API_BASE_URL } from "../store";
 import useChessStore from "../store";
 import {
   Card,
@@ -16,39 +17,45 @@ function Dashboard() {
   const [games, setGames] = useState([]);
   const [view, setView] = useState("games"); // Default to notes
   const [loading, setLoading] = useState(false);
-  const [year, setYear] = useState(new Date().getFullYear().toString());
-  const [month, setMonth] = useState(
-    String(new Date().getMonth() + 1).padStart(2, "0")
-  );
+  const chesscomUsername = useChessStore((state) => state.chesscomUsername);
+  // const [year, setYear] = useState(new Date().getFullYear().toString());
+  // const [month, setMonth] = useState(
+  //   String(new Date().getMonth() + 1).padStart(2, "0")
+  // );
   const [timeControlFilter, setTimeControlFilter] = useState("all");
-  const user = "taylorandrews";
+  // const user = "taylorandrews";
   const navigate = useNavigate();
+  // Replace with dynamic value if needed
+const [year, setYear] = useState(new Date().getFullYear().toString());
+const [month, setMonth] = useState(String(new Date().getMonth() + 1).padStart(2, "0"));
 
-  // Fetch Chess.com games when view is "games"
+
+const user = chesscomUsername
+console.log(user)
+
+  const fetchGames = async (username, year, month) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/chess/games/${username}/${year}/${month}`
+      );
+      if (!response.ok) throw new Error("Failed to fetch Chess.com games");
+      const data = await response.json();
+      setGames(data.games || []); // Extract the games array, default to empty array if missing
+    } catch (error) {
+      console.error("Error fetching Chess.com games:", error);
+      setGames([]); // Set to empty array on error to prevent crashes
+    }
+  };
+
+  //   fetchGames();
+  // }, [view, year, month, user]);
+
   useEffect(() => {
-    if (view !== "games") return;
-
-    const fetchGames = async () => {
+    if (view === "games" && user && year && month) {
       setLoading(true);
-      try {
-        const response = await fetch(
-          `http://localhost:5001/api/chess/games/${user}/${year}/${month}`
-        );
-        if (!response.ok) throw new Error("Failed to fetch Chess.com games");
-        const data = await response.json();
-        const sortedGames = (data.games || []).sort((a, b) => b.end_time - a.end_time);
-        console.log("Fetched Chess.com games (sorted):", sortedGames);
-        setGames(sortedGames);
-      } catch (error) {
-        console.error("Error fetching Chess.com games:", error);
-        setGames([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchGames();
-  }, [view, year, month, user]);
+      fetchGames(user, year, month).finally(() => setLoading(false));
+    }
+  }, [view, user, year, month]);
 
   // Fetch notes when view is "notes"
   useEffect(() => {
