@@ -96,8 +96,8 @@ app.delete("/notes/:id", verifyToken, async (req, res) => {
 // Export for Vercel
 module.exports = app;
 
-// Optional: Run locally for testing (remove for Vercel deployment)
-if (process.env.NODE_ENV !== "production") {
-  const port = process.env.PORT || 5001;
-  app.listen(port, () => console.log(`Server running on port ${port}`));
-}
+// // Optional: Run locally for testing (remove for Vercel deployment)
+// if (process.env.NODE_ENV !== "production") {
+//   const port = process.env.PORT || 5001;
+//   // app.listen(port, () => console.log(`Server running on port ${port}`));
+// }
