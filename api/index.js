@@ -20,6 +20,7 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+
 // Auth Routes
 app.post("/api/auth/register", async (req, res) => {
   const { username, password } = req.body;
@@ -35,11 +36,23 @@ app.post("/api/auth/register", async (req, res) => {
     res.status(500).json({ error: "Username already exists or database error" });
   }
 });
+app.get("/api/test-db", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT 1 AS test");
+    console.log("Test query result:", result.rows);
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Test query error:", err.stack);
+    res.status(500).json({ error: "Test query failed" });
+  }
+});
+
 
 app.post("/api/auth/login", async (req, res) => {
   const { username, password } = req.body;
   try {
     const result = await pool.query("SELECT * FROM users WHERE username = $1", [username]);
+    console.log("username query result:", result.rows);
     const user = result.rows[0];
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ error: "Invalid credentials" });
