@@ -23,10 +23,7 @@ const verifyToken = (req, res, next) => {
     next();
   });
 };
-pool.connect((err) => {
-  if (err) console.error('DB connection error:', err);
-  else console.log('Connected to database');
-});
+
 
 
 // Routes
