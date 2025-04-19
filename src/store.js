@@ -38,7 +38,7 @@ const createNoteTitle = (headers) => {
   return `${white} (${whiteElo}) vs ${black} (${blackElo}) - ${date}`;
 };
 // export const API_BASE_URL = "http://localhost:5001";
-export const API_BASE_URL = "https://study-chess.onrender.com"
+export const API_BASE_URL = "https://chess-notes.com/api"
 console.log('REACT_APP_API_PATH:', process.env.REACT_APP_API_PATH);
 const useChessStore = create(
   persist(

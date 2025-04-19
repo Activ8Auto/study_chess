@@ -1,0 +1,28 @@
+
+services:
+  chessnotes-backend:
+    container_name: chessnotes-backend-prod
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    restart: always
+    env_file:
+      - api/.env            # <-- your Neon creds etc.
+    networks:
+      - app-network
+
+  chessnotes-frontend:
+    container_name: chessnotes-frontend-prod
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        # baked into the React build so axios hits HTTPS in prod
+        REACT_APP_API_PATH: https://chess-notes.com/api
+    restart: always
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true          # reuse the proxy’s existing network

@@ -33,19 +33,23 @@ console.log("Username in store:", chesscomUsername);
 const user = chesscomUsername
 console.log(user)
 
-  const fetchGames = async (username, year, month) => {
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/chess/games/${username}/${year}/${month}`
-      );
-      if (!response.ok) throw new Error("Failed to fetch Chess.com games");
-      const data = await response.json();
-      setGames(data.games || []); // Extract the games array, default to empty array if missing
-    } catch (error) {
-      console.error("Error fetching Chess.com games:", error);
-      setGames([]); // Set to empty array on error to prevent crashes
-    }
-  };
+const fetchGames = async (username, year, month) => {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/chess/games/${username}/${year}/${month}`
+    );
+    if (!response.ok) throw new Error("Failed to fetch Chess.com games");
+    const data = await response.json();
+
+    // sort newest first
+    const raw = data.games || [];
+    const sorted = raw.sort((a, b) => b.end_time - a.end_time);
+    setGames(sorted);
+  } catch (error) {
+    console.error("Error fetching Chess.com games:", error);
+    setGames([]);
+  }
+};
 
   //   fetchGames();
   // }, [view, year, month, user]);
