@@ -1,4 +1,5 @@
 import { Chess } from "chess.js";
+import useChessStore from "../store";
 
 export function generateFullPGN(
   moveTree,
@@ -98,11 +99,12 @@ export async function savePGNWithAnnotations({
   addNote,
   effectiveGameId,
   setSelectedPGN,
-  setFinalResult,
   setSnackbar,
   moveErrors,
   mistakeSequences,
   setAnalysisResults,
+  chatGPTAnalysis,
+  currentPath,
 }) {
   if (!moveTree) return;
 
@@ -136,31 +138,62 @@ export async function savePGNWithAnnotations({
   );
 
   try {
+    let noteId;
+    const store = useChessStore.getState();
+    
+    // Try to find an existing note for this game
+    if (!effectiveGameId) {
+      // Look for a note with the same PGN
+      const existingNote = store.notes.find(n => n.pgn === fullPGN);
+      if (existingNote) {
+        effectiveGameId = existingNote.id;
+      }
+    }
+
     if (effectiveGameId) {
-      await updateNotePGN(effectiveGameId, fullPGN);
-      setSnackbar({
-        open: true,
-        message: "Game updated with new annotations and moves!",
-        severity: "success",
-      });
-    } else {
-      const noteId = await addNote(fullPGN);
-      if (!noteId) throw new Error("Failed to create new note");
-      setAnalysisResults(noteId, moveErrors, mistakeSequences);
+      // Get the current note to preserve existing chatgpt_analysis
+      const currentNote = store.notes.find(n => n.id === effectiveGameId);
+      const currentChatGPTAnalysis = currentNote?.chatgpt_analysis || {};
+      
+      // If we have new ChatGPT analysis, add it to the existing analysis
+      if (chatGPTAnalysis && currentPath) {
+        const movePath = currentPath.map(node => node.move).filter(Boolean);
+        currentChatGPTAnalysis[movePath.join(',')] = chatGPTAnalysis;
+      }
+      
+      await updateNotePGN(effectiveGameId, fullPGN, currentChatGPTAnalysis);
       setSelectedPGN(fullPGN);
       setSnackbar({
         open: true,
-        message: "New game saved!",
+        message: "Note updated successfully",
+        severity: "success",
+      });
+      noteId = effectiveGameId;
+    } else {
+      // Only create a new note if we can't find an existing one
+      const newChatGPTAnalysis = {};
+      if (chatGPTAnalysis && currentPath) {
+        const movePath = currentPath.map(node => node.move).filter(Boolean);
+        newChatGPTAnalysis[movePath.join(',')] = chatGPTAnalysis;
+      }
+      
+      noteId = await addNote(fullPGN, newChatGPTAnalysis);
+      setSelectedPGN(fullPGN);
+      setSnackbar({
+        open: true,
+        message: "Note created successfully",
         severity: "success",
       });
     }
-    setFinalResult(result);
+    setAnalysisResults(noteId, moveErrors, mistakeSequences);
+    return noteId;
   } catch (error) {
     console.error("Error saving PGN:", error);
     setSnackbar({
       open: true,
-      message: `Failed to save PGN: ${error.message}`,
+      message: "Error saving note",
       severity: "error",
     });
+    throw error;
   }
 }

@@ -28,11 +28,11 @@ router.get("/", verifyToken, async (req, res) => {
 
 // POST /notes - Create new note
 router.post("/", verifyToken, async (req, res) => {
-  const { title, pgn } = req.body;
+  const { title, pgn, chatgpt_analysis } = req.body;
   try {
     const result = await db.query(
-      "INSERT INTO notes (user_id, title, pgn) VALUES ($1, $2, $3) RETURNING *",
-      [req.userId, title, pgn]
+      "INSERT INTO notes (user_id, title, pgn, chatgpt_analysis) VALUES ($1, $2, $3, $4) RETURNING *",
+      [req.userId, title, pgn, chatgpt_analysis || {}]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -43,12 +43,12 @@ router.post("/", verifyToken, async (req, res) => {
 
 // PUT /notes/:id - Update a note
 router.put("/:id", verifyToken, async (req, res) => {
-  const { title, pgn } = req.body;
+  const { title, pgn, chatgpt_analysis } = req.body;
   const noteId = req.params.id;
   try {
     const result = await db.query(
-      "UPDATE notes SET title = $1, pgn = $2 WHERE id = $3 AND user_id = $4 RETURNING *",
-      [title, pgn, noteId, req.userId]
+      "UPDATE notes SET title = $1, pgn = $2, chatgpt_analysis = $3 WHERE id = $4 AND user_id = $5 RETURNING *",
+      [title, pgn, chatgpt_analysis || {}, noteId, req.userId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Note not found" });
     res.json(result.rows[0]);
@@ -71,6 +71,45 @@ router.delete("/:id", verifyToken, async (req, res) => {
   } catch (err) {
     console.error("Delete note error:", err.stack);
     res.status(500).json({ error: "Database error" });
+  }
+});
+
+// POST /notes/:id/analysis - Save analysis results for a note
+router.post("/:id/analysis", verifyToken, async (req, res) => {
+  const { move_errors, mistake_sequences } = req.body;
+  const noteId = req.params.id;
+  
+  // Ensure the data is properly formatted as JSONB
+  const moveErrorsJson = Array.isArray(move_errors) ? move_errors : [];
+  const mistakeSequencesJson = Array.isArray(mistake_sequences) ? mistake_sequences : [];
+  
+  try {
+    console.log("Saving analysis for note:", noteId, {
+      moveErrors: moveErrorsJson,
+      mistakeSequences: mistakeSequencesJson
+    });
+    
+    const result = await db.query(
+      "UPDATE notes SET move_errors = $1::jsonb, mistake_sequences = $2::jsonb WHERE id = $3 AND user_id = $4 RETURNING *",
+      [JSON.stringify(moveErrorsJson), JSON.stringify(mistakeSequencesJson), noteId, req.userId]
+    );
+    
+    if (result.rows.length === 0) {
+      console.log("Note not found:", noteId);
+      return res.status(404).json({ error: "Note not found" });
+    }
+    
+    console.log("Analysis saved successfully:", result.rows[0]);
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Save analysis error:", err.stack);
+    console.error("Error details:", {
+      noteId,
+      moveErrors: moveErrorsJson,
+      mistakeSequences: mistakeSequencesJson,
+      error: err.message
+    });
+    res.status(500).json({ error: "Database error", details: err.message });
   }
 });
 

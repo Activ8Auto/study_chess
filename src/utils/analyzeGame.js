@@ -1,5 +1,3 @@
-
-
 export async function analyzeGame({
   moveTree,
   whitePlayer,
@@ -28,6 +26,7 @@ export async function analyzeGame({
 
   const stockfish = new Worker("/stockfish-17-single.js");
 
+  // Configure Stockfish for optimal performance
   await new Promise((resolve) => {
     stockfish.onmessage = (event) => {
       const msg = event.data;
@@ -40,15 +39,27 @@ export async function analyzeGame({
     stockfish.postMessage("uci");
   });
 
+  // Set optimal parameters for analysis
+  stockfish.postMessage("setoption name Threads value 4"); // Use 4 threads
+  stockfish.postMessage("setoption name Hash value 1024"); // Use 1GB of hash
+  stockfish.postMessage("setoption name MultiPV value 3"); // Show top 3 moves
+  stockfish.postMessage("setoption name SyzygyPath value ./syzygy"); // Use endgame tablebases if available
+  stockfish.postMessage("setoption name UCI_LimitStrength value false"); // Don't limit strength
+  stockfish.postMessage("setoption name UCI_Elo value 3200"); // Set high ELO
+
   const getEvaluation = (fen) => {
     return new Promise((resolve) => {
       let evaluation = null;
+      let bestMove = null;
+      let pv = null;
 
       const onMessage = (event) => {
         const message = event.data;
         if (message.startsWith(`info depth ${analysisDepth}`)) {
           const parts = message.split(" ");
           const scoreIndex = parts.indexOf("score");
+          const pvIndex = parts.indexOf("pv");
+          
           if (scoreIndex !== -1) {
             const scoreType = parts[scoreIndex + 1];
             let scoreValue = parseInt(parts[scoreIndex + 2], 10);
@@ -61,20 +72,20 @@ export async function analyzeGame({
               if (turn === "b") evaluation = -evaluation;
             }
           }
+
+          if (pvIndex !== -1) {
+            pv = parts.slice(pvIndex + 1).join(" ");
+            bestMove = pv.split(" ")[0];
+          }
         } else if (message.startsWith("bestmove")) {
           stockfish.removeEventListener("message", onMessage);
-          resolve(evaluation);
+          resolve({ evaluation, bestMove, pv });
         }
       };
 
       stockfish.addEventListener("message", onMessage);
       stockfish.postMessage(`position fen ${fen}`);
       stockfish.postMessage(`go depth ${analysisDepth}`);
-
-      setTimeout(() => {
-        stockfish.removeEventListener("message", onMessage);
-        resolve(evaluation);
-      }, 5000);
     });
   };
 

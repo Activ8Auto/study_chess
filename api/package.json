@@ -18,6 +18,8 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
-    "pg": "^8.14.0"
+    "openai": "^4.95.1",
+    "pg": "^8.14.0",
+    "react-markdown": "^10.1.0"
   }
 }

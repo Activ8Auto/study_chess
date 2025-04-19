@@ -2,15 +2,20 @@ const { Pool } = require("pg");
 
 // Singleton pattern to ensure only one pool
 if (!global.postgresPoolInstance) {
-  global.postgresPoolInstance = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: {
-      rejectUnauthorized: false
-    },
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL environment variable is not set');
+  }
+
+  const connectionString = process.env.DATABASE_URL + (process.env.DATABASE_URL.includes('?') ? '&' : '?') + 'sslmode=require';
+  
+  const poolConfig = {
+    connectionString,
     max: 1,           // Strict limit to 1 connection
     idleTimeoutMillis: 5000,   // Close idle connection quickly
     connectionTimeoutMillis: 10000  // 10 second connection timeout
-  });
+  };
+
+  global.postgresPoolInstance = new Pool(poolConfig);
 
   // Log and handle any unexpected errors
   global.postgresPoolInstance.on('error', (err) => {

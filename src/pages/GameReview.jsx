@@ -5,6 +5,7 @@ import { loadPGNData } from "../utils/loadPGNData";
 import { Chess } from "chess.js";
 import {useChessGame, STARTING_FEN} from "../hooks/useChessGame"
 import { analyzeGame } from "../utils/analyzeGame";
+import { getChatGPTAnalysis } from "../utils/chatGPTAnalysis";
 import SnackbarAlert from "../components/SnackbarAlert";
 import { setupKeyboardNavigation } from "../utils/keyboardNavigation";
 import {
@@ -37,6 +38,7 @@ import {
   InputAdornment,
 } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import ReactMarkdown from 'react-markdown';
 
 export default function GameReview() {
   const { gameId } = useParams();
@@ -50,6 +52,10 @@ export default function GameReview() {
     setSelectedPGN,
     updateNotePGN,
     addNote,
+    saveMoveAnalysis,
+    getMoveAnalysis,
+    moveAnalyses,
+    getAllMoveAnalyses,
   } = useChessStore();
 
   const {
@@ -85,9 +91,6 @@ export default function GameReview() {
   const [settingsAnchorEl, setSettingsAnchorEl] = useState(null);
   const [moveErrors, setMoveErrors] = useState([]);
   const [effectiveGameId, setEffectiveGameId] = useState(null);
-  // const [engineEval, setEngineEval] = useState(null);
-  // const [topLine, setTopLine] = useState("");
-  // const [stockfish, setStockfish] = useState(null);
   const { stockfish, engineEval,depth, setEngineEval, topLine, setTopLine } = useStockfish(chess, currentPath);
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -95,6 +98,10 @@ export default function GameReview() {
     severity: "success",
   });
   const [anchorEl, setAnchorEl] = useState(null);
+  const [chatGPTAnalysis, setChatGPTAnalysis] = useState(null);
+  const [isAnalyzingWithChatGPT, setIsAnalyzingWithChatGPT] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+
   const getNodeByMovePath = (node, movePath) => {
     let current = node;
     for (const move of movePath) {
@@ -267,21 +274,60 @@ const handleAnnotationChange = (value) => {
   }, [selectedPGN]);
 // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!gameId || !notes.length) return;
+    if (!gameId || !notes.length) {
+      console.log("Cannot load note - missing data:", { gameId, notesLength: notes.length });
+      return;
+    }
   
-    const note = notes.find((n) => n.id === parseInt(gameId, 10));
-    if (!note) return;
+    // Extract the numeric ID from the gameId (handles both 'note-15' and '15' formats)
+    const noteId = gameId.startsWith('note-') 
+      ? parseInt(gameId.replace('note-', ''), 10)
+      : parseInt(gameId, 10);
+    
+    console.log("Looking for note with ID:", noteId);
+    
+    const note = notes.find((n) => n.id === noteId);
+    if (!note) {
+      console.log("Note not found:", { 
+        gameId, 
+        parsedNoteId: noteId,
+        noteIds: notes.map(n => n.id) 
+      });
+      return;
+    }
   
+    console.log("Loading note:", {
+      noteId: note.id,
+      hasPGN: !!note.pgn,
+      hasChatGPTAnalysis: !!note.chatgpt_analysis
+    });
+
+    // Set the effectiveGameId first
+    setEffectiveGameId(note.id);
+
+    // Then load the PGN data
+    setSelectedPGN(note.pgn);
+
     const existingAnalysis = analysisResults[note.id];
     if (existingAnalysis) {
       console.log("Restoring existing analysis from store:", existingAnalysis);
       setMoveErrors(existingAnalysis.moveErrors);
-      setMistakeSequences(existingAnalysis.mistakeSequences || existingAnalysis.mistakeNodes); // Handle legacy data if any
+      setMistakeSequences(existingAnalysis.mistakeSequences || existingAnalysis.mistakeNodes);
     } else {
       setMoveErrors([]);
       setMistakeSequences([]);
     }
-  }, [gameId, notes, analysisResults]);
+
+    // Finally fetch all move analyses
+    console.log("Fetching move analyses for note:", note.id);
+    getAllMoveAnalyses(note.id)
+      .then(analyses => {
+        console.log("Fetched move analyses:", analyses);
+      })
+      .catch(error => {
+        console.error("Error fetching move analyses:", error);
+      });
+  }, [gameId, notes, analysisResults, getAllMoveAnalyses, setSelectedPGN]);
   
 // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -329,9 +375,152 @@ const handleAnnotationChange = (value) => {
     });
   };
 
-
-
+  const handleChatGPTAnalysis = async () => {
+    if (!stockfish || !chess) return;
     
+    const token = useChessStore.getState().token;
+    if (!token) {
+      setSnackbar({
+        open: true,
+        message: "Please log in to use ChatGPT analysis",
+        severity: "error",
+      });
+      return;
+    }
+    
+    setIsAnalyzingWithChatGPT(true);
+    try {
+      const analysis = await getChatGPTAnalysis({
+        fen: chess.fen(),
+        bestMove: topLine.split(' ')[0],
+        pv: topLine,
+        evaluation: engineEval,
+        sideToMove: chess.turn() === 'w' ? 'white' : 'black',
+        whiteElo,
+        blackElo,
+        analyzingPlayer: "taylorandrews"
+      });
+      
+      setChatGPTAnalysis(analysis);
+      
+      // Save the analysis if we have a note ID
+      if (effectiveGameId) {
+        const movePath = currentPath.map(node => node.move).filter(Boolean);
+        const movePathStr = movePath.join(',');
+        
+        // Save to moveAnalyses
+        await saveMoveAnalysis(
+          effectiveGameId,
+          movePath,
+          chess.fen(),
+          { moveErrors, mistakeSequences },
+          analysis
+        );
+        
+        // Also save to the note's chatgpt_analysis field
+        const note = notes.find(n => n.id === effectiveGameId);
+        if (note) {
+          const updatedChatGPTAnalysis = {
+            ...(note.chatgpt_analysis || {}),
+            [movePathStr]: analysis
+          };
+          
+          // Update the note with the new analysis
+          await updateNotePGN(effectiveGameId, note.pgn, updatedChatGPTAnalysis);
+          
+          // Update the local notes state
+          const updatedNotes = notes.map(n => 
+            n.id === effectiveGameId 
+              ? { ...n, chatgpt_analysis: updatedChatGPTAnalysis }
+              : n
+          );
+          useChessStore.setState({ notes: updatedNotes });
+        }
+      }
+    } catch (error) {
+      console.error("Error getting ChatGPT analysis:", error);
+      setSnackbar({
+        open: true,
+        message: "Error getting ChatGPT analysis",
+        severity: "error",
+      });
+    } finally {
+      setIsAnalyzingWithChatGPT(false);
+    }
+  };
+
+  // Add a new effect to load saved analysis when the current path changes
+  useEffect(() => {
+    // Wait for both currentPath and effectiveGameId to be set
+    if (!currentPath.length) {
+      console.log("Waiting for currentPath to be set");
+      return;
+    }
+
+    if (!effectiveGameId) {
+      console.log("Waiting for effectiveGameId to be set");
+      return;
+    }
+    
+    const movePath = currentPath.map(node => node.move).filter(Boolean);
+    const movePathStr = movePath.join(',');
+    console.log("Attempting to load analysis for:", {
+      movePathStr,
+      effectiveGameId,
+      moveAnalysesKeys: Object.keys(moveAnalyses),
+      noteIds: notes.map(n => n.id)
+    });
+
+    let savedAnalysis = null;
+
+    // First check moveAnalyses
+    savedAnalysis = moveAnalyses[effectiveGameId]?.[movePathStr];
+    console.log("MoveAnalyses check:", {
+      found: !!savedAnalysis,
+      analysis: savedAnalysis
+    });
+    
+    // If not found in moveAnalyses, check the note's chatgpt_analysis
+    if (!savedAnalysis) {
+      const note = notes.find(n => n.id === effectiveGameId);
+      console.log("Note check:", {
+        found: !!note,
+        noteId: note?.id,
+        chatgptAnalysis: note?.chatgpt_analysis
+      });
+      
+      if (note?.chatgpt_analysis?.[movePathStr]) {
+        savedAnalysis = { chatgpt_analysis: note.chatgpt_analysis[movePathStr] };
+        console.log("Found analysis in note:", savedAnalysis);
+      }
+    }
+
+    if (savedAnalysis?.chatgpt_analysis) {
+      console.log("Setting ChatGPT analysis:", savedAnalysis.chatgpt_analysis);
+      setChatGPTAnalysis(savedAnalysis.chatgpt_analysis);
+    } else {
+      console.log("No analysis found for move:", movePathStr);
+      setChatGPTAnalysis(null);
+    }
+  }, [currentPath, effectiveGameId, moveAnalyses, notes]);
+
+  // Add click outside handler
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (isExpanded) {
+        const analysisBox = document.getElementById('chatgpt-analysis-box');
+        if (analysisBox && !analysisBox.contains(event.target)) {
+          setIsExpanded(false);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isExpanded]);
+
   return (
     <>
     
@@ -495,6 +684,8 @@ const handleAnnotationChange = (value) => {
               moveErrors,
               mistakeSequences,
               setAnalysisResults,
+              chatGPTAnalysis: chatGPTAnalysis,
+              currentPath,
             });
           }}
           sx={{ mt: 2, mr: 1 }}
@@ -506,11 +697,100 @@ const handleAnnotationChange = (value) => {
           Analyze Full Game
         </Button>
 
+        <Button 
+          variant="contained" 
+          onClick={handleChatGPTAnalysis}
+          disabled={isAnalyzingWithChatGPT}
+          sx={{ mt: 2, mr: 1 }}
+        >
+          {isAnalyzingWithChatGPT ? 'Analyzing...' : 'Get ChatGPT Analysis'}
+        </Button>
+
+        {chatGPTAnalysis && (
+          <>
+            <Paper
+              id="chatgpt-analysis-box"
+              elevation={0}
+              sx={{
+                backgroundColor: "#f5f5f5",
+                borderRadius: "8px",
+                boxShadow: "inset 0px 2px 4px rgba(0, 0, 0, 0.1)",
+                mt: 2,
+                p: 2,
+                maxWidth: "100%",
+                maxHeight: isExpanded ? "100vh" : "300px",
+                overflow: "auto",
+                transition: "all 0.3s ease-in-out",
+                position: isExpanded ? "fixed" : "relative",
+                top: isExpanded ? 0 : "auto",
+                right: isExpanded ? 0 : "auto",
+                width: isExpanded ? "50%" : "100%",
+                height: isExpanded ? "100vh" : "auto",
+                zIndex: isExpanded ? 1000 : 1,
+                transform: isExpanded ? "translateX(0)" : "none",
+              }}
+            >
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                <Typography variant="h6">ChatGPT Analysis</Typography>
+                <Button
+                  size="small"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  sx={{ minWidth: 'auto' }}
+                >
+                  {isExpanded ? 'Collapse' : 'Expand'}
+                </Button>
+              </Box>
+              <Box 
+                sx={{ 
+                  overflow: 'auto',
+                  maxHeight: isExpanded ? 'calc(100vh - 100px)' : '250px',
+                  pr: 2,
+                  '& h1, & h2, & h3, & h4, & h5, & h6': {
+                    mt: 2,
+                    mb: 1,
+                  },
+                  '& p': {
+                    mb: 1,
+                  },
+                  '& ul, & ol': {
+                    pl: 3,
+                    mb: 1,
+                  },
+                  '& li': {
+                    mb: 0.5,
+                  },
+                  '& strong': {
+                    fontWeight: 600,
+                  },
+                  '& em': {
+                    fontStyle: 'italic',
+                  }
+                }}
+              >
+                <ReactMarkdown>{chatGPTAnalysis}</ReactMarkdown>
+              </Box>
+            </Paper>
+            {isExpanded && (
+              <Box
+                sx={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: '50%',
+                  bottom: 0,
+                  backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                  zIndex: 999,
+                }}
+              />
+            )}
+          </>
+        )}
+
         <Card
   sx={{
     mt: 2,
     height: "100%",
-    maxWidth: "100%", // Prevent it from exceeding the Grid’s width
+    maxWidth: "100%", // Prevent it from exceeding the Grid's width
     overflow: "hidden", // Clip any overflow
   }}
 >
@@ -536,6 +816,7 @@ const handleAnnotationChange = (value) => {
               currentPath={currentPath}
               setCurrentPath={setCurrentPath}
               mistakeSequences={mistakeSequences}
+              moveErrors={moveErrors}
               goToMove={handleGoToMove}
               setPath={handleSetPath}
             />

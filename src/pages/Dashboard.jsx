@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE_URL } from "../store";
+import { API_BASE_URL } from "../config";
 import useChessStore from "../store";
 import {
   Card,
@@ -10,7 +10,10 @@ import {
   Select,
   CircularProgress,
   Button,
+  Box,
+  Paper,
 } from "@mui/material";
+import ReactMarkdown from "react-markdown";
 
 function Dashboard() {
   const { fetchNotes, notes, setSelectedPGN, deleteNote } = useChessStore(); // Added deleteNote
@@ -34,12 +37,31 @@ const user = chesscomUsername
 console.log(user)
 
 const fetchGames = async (username, year, month) => {
+  console.log("Fetching games with:", { username, year, month });
+  if (!username) {
+    console.log("No username provided, skipping fetch");
+    return;
+  }
+  const token = useChessStore.getState().token;
+  if (!token) {
+    console.error("No token available");
+    return;
+  }
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/chess/games/${username}/${year}/${month}`
-    );
-    if (!response.ok) throw new Error("Failed to fetch Chess.com games");
+    const url = `${API_BASE_URL}/chess/games/${username}/${year}/${month}`;
+    console.log("Fetching from URL:", url);
+    const response = await fetch(url, {
+      headers: {
+        "Authorization": token,
+      },
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      console.error("Error response:", text);
+      throw new Error(`Failed to fetch Chess.com games: ${text}`);
+    }
     const data = await response.json();
+    console.log("Received games data:", data);
 
     // sort newest first
     const raw = data.games || [];
@@ -171,11 +193,29 @@ const fetchGames = async (username, year, month) => {
                 <Typography color="textSecondary">
                   {note.content || "No content"}
                 </Typography>
+                {note.move_notes && Object.entries(note.move_notes).map(([move, analysis]) => (
+                  <Box key={move} sx={{ mt: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+                    <Typography variant="subtitle1">Move: {move}</Typography>
+                    {analysis.chatgpt_analysis && (
+                      <Paper sx={{ 
+                        p: 2, 
+                        mt: 1, 
+                        bgcolor: 'grey.100',
+                        maxHeight: "300px",
+                        overflow: "auto"
+                      }}>
+                        <Typography variant="body2" component="div">
+                          <ReactMarkdown>{analysis.chatgpt_analysis}</ReactMarkdown>
+                        </Typography>
+                      </Paper>
+                    )}
+                  </Box>
+                ))}
                 <div style={{ marginTop: "10px", display: "flex", gap: "10px" }}>
                   <Button
                     variant="contained"
                     onClick={() => {
-                      setSelectedPGN(note.pgn); // Assuming note has a pgn field
+                      setSelectedPGN(note.pgn);
                       navigate(`/game/note-${note.id || index}`);
                     }}
                   >

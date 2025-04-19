@@ -3,7 +3,7 @@ import { Box, Typography, Paper } from "@mui/material";
 
 const getMoveSequence = (path) => path.slice(1).map((node) => node.move).join(" ");
 
-export default function MoveList({ moveList, currentPath, setCurrentPath, mistakeSequences, goToMove, setPath }) {
+export default function MoveList({ moveList, currentPath, setCurrentPath, mistakeSequences, moveErrors, goToMove, setPath }) {
   const currentNode = currentPath[currentPath.length - 1];
 
   const renderMoves = () => {
@@ -18,6 +18,7 @@ export default function MoveList({ moveList, currentPath, setCurrentPath, mistak
       const pushMoveBox = () => {
         const isCurrentMove = item.path && item.path[item.path.length - 1] === currentNode;
         const isMistake = item.path && mistakeSequences.includes(getMoveSequence(item.path));
+        const moveError = moveErrors.find(error => error.moveText === item.text);
 
         return (
           <Box
@@ -31,7 +32,7 @@ export default function MoveList({ moveList, currentPath, setCurrentPath, mistak
               bgcolor: isCurrentMove ? "#b2ebf2" : "transparent",
               px: 0.25,
               borderRadius: 1,
-              color: isMistake ? "error.main" : "inherit",
+              color: isMistake || moveError ? "error.main" : "inherit",
               "&:hover": item.path ? { bgcolor: "grey.200" } : {},
               maxWidth: "100%",
               overflow: "hidden",

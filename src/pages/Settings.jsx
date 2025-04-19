@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import useChessStore from "../store";
-import { API_BASE_URL } from "../store";
+import { API_BASE_URL } from "../config";
 import {
   Container,
   Typography,
